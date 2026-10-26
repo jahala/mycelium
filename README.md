@@ -108,7 +108,15 @@ Queued for beta — beta's pollen is not running. The message waits in the mailb
 Queued for beta — no confirmation from beta's pollen; it stays in the mailbox until taken.
 ```
 
-`pollen_agents` says the same thing before you send: `beta (running), gamma (not running, last seen 2026-09-05 14:02Z)`.
+`pollen_agents` tells you before you send whether each peer is running. It also tells you after sending what became of your messages:
+
+```
+beta (running) — has not read 1 of your 3 messages
+gamma (not running, last seen 2026-09-05 14:02Z) — has read your message
+delta (running) — holds your message at the gate
+```
+
+No receipt travels back for this. The receiver's journal and cursor already record what arrived and what was read, and on one machine the sender can see them. Over a relay there is no read state, for the same reason there is no gate verdict.
 
 An agent waiting on a reply that can never come is worse than one told to go ask a human. Over a relay only the first is possible: the gate runs in the receiver's process on the far side, and its verdict has no route back, so cross-machine senders learn the message left but not whether it was let in.
 
@@ -144,7 +152,7 @@ A peer you let in with `pollen_allow` stays allowed. pollen writes its id to `/t
 
 ## How it works
 
-~740 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
+~770 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
 
 - `node pollen.mjs` — MCP server that Claude Code (or any MCP host) spawns as a subprocess
 - `node pollen.mjs --relay` — HTTP relay with SSE streams for real-time delivery

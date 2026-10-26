@@ -483,12 +483,12 @@ test("pollen_agents says which peers are running", async () => {
   const wyn = agent("wyn");
   await Promise.all([vera.ready(), wyn.ready()]);
 
-  assert.match(await vera.tool("pollen_agents"), /(^|, )wyn \(running\)(,|$)/);
+  assert.match(await vera.tool("pollen_agents"), /^wyn \(running\)$/m);
 
   await wyn.stop();
   assert.match(
     await vera.tool("pollen_agents"),
-    /(^|, )wyn \(not running, last seen \d{4}-\d\d-\d\d \d\d:\d\dZ\)(,|$)/,
+    /^wyn \(not running, last seen \d{4}-\d\d-\d\d \d\d:\d\dZ\)$/m,
   );
 });
 
@@ -540,4 +540,36 @@ test("pollen_inbox says when each message arrived and where it sits in the journ
   const [a, b] = journal("nod");
   const stamp = (e) => `${e.ts.slice(0, 19)}Z #${e.seq}`;
   assert.equal(await nod.tool("pollen_inbox"), `[pax ${stamp(a)}]: first\n[pax ${stamp(b)}]: second`);
+});
+
+test("pollen_agents says whether a peer has read what you sent", async () => {
+  const ash = agent("ash", { POLLEN_ALLOW: "bryn" });
+  const bryn = agent("bryn", { POLLEN_ALLOW: "ash" });
+  await Promise.all([ash.ready(), bryn.ready()]);
+
+  // Without this, delivered-and-unread and lost look the same from the
+  // sender's side, and agents trade "ack" messages to tell them apart.
+  await ash.tool("pollen_send", { to: "bryn", message: "one" });
+  await ash.tool("pollen_send", { to: "bryn", message: "two" });
+  assert.match(await ash.tool("pollen_agents"), /^bryn \(running\) — has not read your 2 messages$/m);
+
+  await bryn.tool("pollen_inbox");
+  await ash.tool("pollen_send", { to: "bryn", message: "three" });
+  assert.match(await ash.tool("pollen_agents"), /^bryn \(running\) — has not read 1 of your 3 messages$/m);
+
+  await bryn.tool("pollen_inbox");
+  assert.match(await ash.tool("pollen_agents"), /^bryn \(running\) — has read all 3 of your messages$/m);
+});
+
+test("pollen_agents says when a peer holds or denies your message at the gate", async () => {
+  const cass = agent("cass");             // trusts nobody
+  const dov = agent("dov");
+  await Promise.all([cass.ready(), dov.ready()]);
+
+  await dov.tool("pollen_send", { to: "cass", message: "let me in" });
+  assert.match(await dov.tool("pollen_agents"), /^cass \(running\) — holds your message at the gate$/m);
+
+  // A denial is never rung out, but the sender is still owed the outcome.
+  await cass.tool("pollen_deny", { agent: "dov" });
+  assert.match(await dov.tool("pollen_agents"), /^cass \(running\) — denied your message$/m);
 });
