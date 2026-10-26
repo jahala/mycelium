@@ -41,7 +41,9 @@ knock freely and they can read the traffic if the transport is not encrypted.
 
 **Sender identity is by assertion.** `POLLEN_ID` is whatever the sender says it is.
 On one machine that is bounded by filesystem permissions; over a relay it is not
-bounded at all. `pollen_allow` is trust in a name, not in a key.
+bounded at all. `pollen_allow` is trust in a name, not in a key. `pollen_rename` follows
+the same rule: an agent can take any id that no running server holds, along with that
+id's allow list.
 
 **What it does not do.** It does not execute anything it receives, run as root, or
 open a port unless you start `--relay`. Delivery side effects are local filesystem

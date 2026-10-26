@@ -38,7 +38,18 @@ Then add to your `.mcp.json`:
 }
 ```
 
-That's it. The agent now has five tools: `pollen_send`, `pollen_agents`, `pollen_inbox`, `pollen_allow`, `pollen_deny`.
+That's it. The agent now has six tools: `pollen_send`, `pollen_agents`, `pollen_inbox`, `pollen_allow`, `pollen_deny`, `pollen_rename`.
+
+## Taking the id you are expected under
+
+A launcher often names an agent before anyone knows what its director will call it. A global registration might name it after its worktree directory (`douala`), while the director expects and has allowed `quadrat`. The environment cannot change once the server is running, so the agent takes the id instead:
+
+```
+pollen_rename quadrat
+You are now "quadrat" on pollen, no longer "douala". 1 unread message came with you. Anyone who writes to douala is told your new id. Restart your watcher as "node /path/to/pollen.mjs --watch quadrat".
+```
+
+Unread messages, held knocks and allowed peers come along. A send to the old id is refused with the new one named, and `pollen_agents` lists it as `douala (now quadrat)`. An id that another running server holds cannot be taken. A server standing aside because its id is taken can rename its way out.
 
 ## Getting woken
 
@@ -152,7 +163,7 @@ A peer you let in with `pollen_allow` stays allowed. pollen writes its id to `/t
 
 ## How it works
 
-~770 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
+~860 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
 
 - `node pollen.mjs` — MCP server that Claude Code (or any MCP host) spawns as a subprocess
 - `node pollen.mjs --relay` — HTTP relay with SSE streams for real-time delivery
