@@ -26,11 +26,17 @@ import {
 } from "fs";
 import { createInterface } from "readline";
 import { join } from "path";
+import { fileURLToPath } from "url";
 import { setTimeout as sleep } from "timers/promises";
 import http from "http";
 
 const VERSION = "0.1.0";
 const DIR = process.env.POLLEN_DIR ?? "/tmp/pollen";
+// How to run this very file, for the commands the agent is told to start. A
+// bare "pollen.mjs" only works from the directory it happens to sit in.
+const SELF = fileURLToPath(import.meta.url);
+const RUN = `node ${/\s/.test(SELF) ? `'${SELF}'` : SELF}`;
+const ASK = "Ask the user before calling pollen_allow or pollen_deny.";
 
 if (process.argv.includes("--version")) {
   process.stdout.write(`pollen ${VERSION}\n`);
@@ -162,6 +168,15 @@ function heldPending(id) {
   return entries.filter((e) => e.status === "pending" && !settled.has(e.seq));
 }
 
+// Who is waiting at the gate and with how much, oldest knock first.
+function heldByPeer(id) {
+  const counts = new Map();
+  for (const e of heldPending(id)) counts.set(e.from, (counts.get(e.from) ?? 0) + 1);
+  return counts;
+}
+
+function plural(n, word) { return `${n} ${word}${n === 1 ? "" : "s"}`; }
+
 // =============================================================================
 // AGENT MODE
 // =============================================================================
@@ -187,15 +202,7 @@ function startAgent() {
     return preAllowed.includes(from) || allowed().includes(from);
   }
 
-  const pending = new Map(); // agent → [{ from, message, seq }]
-
   mkdirSync(join(DIR, ID), { recursive: true });
-
-  // The journal is what rings the gate, so the gate is rebuilt from it — a
-  // knock the watcher reports has to still be there to allow or deny.
-  for (const e of heldPending(ID)) {
-    pending.set(e.from, [...(pending.get(e.from) ?? []), { from: e.from, message: e.message, seq: e.seq }]);
-  }
 
   function record(from, message, status, resolves) {
     // Numbered from the journal at write time, not from a counter taken at
@@ -260,9 +267,9 @@ function startAgent() {
           `You are agent "${ID}", a peer on pollen.`,
           `Incoming messages appear as <channel> tags with a "from" attribute.`,
           `Use pollen_send to reach another peer. Use pollen_agents to see who is reachable.`,
-          `Use pollen_inbox to read what has arrived. A stranger is held at the gate: ask the user before calling pollen_allow or pollen_deny.`,
-          `Do not poll for messages. Run "node pollen.mjs --watch ${ID}" as a background task in your harness — it rings one line the moment anything lands, then you call pollen_inbox to read it.`,
-          `To reach peers on other machines: run "node pollen.mjs --relay" then expose it with "cloudflared tunnel --url http://localhost:4747" (free, no account needed).`,
+          `Use pollen_inbox to read what has arrived. A stranger is held at the gate. ${ASK}`,
+          `Do not poll for messages. Run "${RUN} --watch ${ID}" with your harness's line-event tool (in Claude Code that is Monitor; a background Bash task only reports when it exits). It prints one line the moment anything lands; then call pollen_inbox. If you pipe it, every later stage must flush per line.`,
+          `To reach peers on other machines: run "${RUN} --relay" then expose it with "cloudflared tunnel --url http://localhost:4747" (free, no account needed).`,
           `Give the resulting URL to the user so they can pass it to the remote peer as POLLEN_RELAY.`,
         ].join(" "),
       });
@@ -359,9 +366,10 @@ function startAgent() {
         return text(`Cannot allow ${JSON.stringify(agent)}: a peer id has no spaces, commas or line breaks. Nobody was allowed. Check the id with pollen_agents.`);
       }
       if (!trusts(agent)) appendFileSync(allowPath(ID), agent + "\n");
-      const held = pending.get(agent) ?? [];
+      // The gate is read from the journal, not kept in memory: a knock taken in
+      // before a restart, or by another process, is just as much ours to settle.
+      const held = heldPending(ID).filter((e) => e.from === agent);
       if (held.length) {
-        pending.delete(agent);
         for (const m of held) {
           record(m.from, m.message, "delivered", m.seq);
           notify(m.message, { from: m.from });
@@ -372,8 +380,7 @@ function startAgent() {
       return text(`Allowed ${agent}.`);
     },
     async pollen_deny({ agent }) {
-      const held = pending.get(agent) ?? [];
-      pending.delete(agent);
+      const held = heldPending(ID).filter((e) => e.from === agent);
       // Settle each pending entry so the gate stops counting them, without
       // repeating the text of something the human just rejected.
       for (const m of held) record(m.from, "", "denied", m.seq);
@@ -383,9 +390,13 @@ function startAgent() {
     },
     async pollen_inbox() {
       const msgs = unread(ID);
-      if (!msgs.length) return text("No new messages.");
-      writeFileSync(cursorPath(ID), String(msgs.at(-1).seq));
-      return text(msgs.map((m) => `[${m.from}]: ${m.message}`).join("\n"));
+      if (msgs.length) writeFileSync(cursorPath(ID), String(msgs.at(-1).seq));
+      const read = msgs.length ? msgs.map((m) => `[${m.from}]: ${m.message}`).join("\n") : "No new messages.";
+      // "No new messages" alone, with knocks waiting, reads as "nothing arrived"
+      // and the agent tells its person so.
+      const held = [...heldByPeer(ID)].map(([peer, n]) => `${peer} (${plural(n, "message")})`);
+      if (!held.length) return text(read);
+      return text(`${read}\nHeld at the gate: ${held.join(", ")}. ${ASK}`);
     },
   };
 
@@ -398,8 +409,7 @@ function startAgent() {
     } else {
       // Every knock is kept. Holding only the latest would mean a stranger's
       // follow-up destroys the message it is asking about.
-      const seq = record(from, message, "pending");
-      pending.set(from, [...(pending.get(from) ?? []), { from, message, seq }]);
+      record(from, message, "pending");
       notify(
         `"${from}" is knocking. Use pollen_allow or pollen_deny.`,
         { from, status: "pending" }
@@ -544,8 +554,17 @@ function startAgent() {
   const carried = unread(ID).length;
   if (carried) {
     notify(
-      `${carried} unread message${carried === 1 ? "" : "s"} from a previous session. Use pollen_inbox to read.`,
+      `${plural(carried, "unread message")} from a previous session. Use pollen_inbox to read.`,
       { status: "unread" }
+    );
+  }
+  // A knock that came in while no server was running is just as easy to miss.
+  const knocking = heldByPeer(ID);
+  if (knocking.size) {
+    const n = [...knocking.values()].reduce((a, b) => a + b, 0);
+    notify(
+      `${plural(n, "message")} held at the gate from ${[...knocking.keys()].join(", ")}. ${ASK}`,
+      { status: "pending" }
     );
   }
 
@@ -571,9 +590,13 @@ function startWatch(id) {
   mkdirSync(join(DIR, id), { recursive: true });
   appendFileSync(journal, ""); // create it if the agent hasn't started yet
 
-  const last = readJournal(id).pop();
-  let lastSeq = last?.seq ?? 0;
-  let lastTs = last?.ts;
+  // Position is counted in lines, never in seq. The journal is append-only, so
+  // line N stays line N; a seq can repeat or arrive out of order, and keying on
+  // it once made a watcher ring the whole journal on every tick.
+  const at = (e) => e && `${e.seq} ${e.ts}`;
+  const start = readJournal(id);
+  let seen = start.length;
+  let mark = at(start.at(-1));
 
   function line(e) {
     // A denial is a settlement entry, not an arrival. Ringing it out would put
@@ -589,33 +612,30 @@ function startWatch(id) {
 
   function pump() {
     const entries = readJournal(id);
-    // A cleared /tmp restarts the journal at seq 1. If the entry we stopped at
-    // is no longer where we left it, start over — going quietly deaf is the one
+    // A cleared /tmp starts a new journal. If the line we stopped at is gone or
+    // is no longer the same entry, start over — going quietly deaf is the one
     // thing a watcher must never do.
-    if (entries[lastSeq - 1]?.ts !== lastTs) {
-      lastSeq = 0;
-      lastTs = undefined;
-    }
-    for (const e of entries) {
-      if (e.seq <= lastSeq) continue;
-      lastSeq = e.seq;
-      lastTs = e.ts;
+    if (entries.length < seen || at(entries[seen - 1]) !== mark) seen = 0;
+    for (const e of entries.slice(seen)) {
       const l = line(e);
       if (l) process.stdout.write(l + "\n");
     }
+    seen = entries.length;
+    mark = at(entries.at(-1));
   }
 
   // Ring once for whatever is already waiting, so arming the watcher never
   // starts deaf — a count, not a transcript, however long the agent was away.
   const waiting = unread(id).length;
   if (waiting) {
-    process.stdout.write(`[pollen] ${waiting} message${waiting === 1 ? "" : "s"} waiting — pollen_inbox to read\n`);
+    process.stdout.write(`[pollen] ${plural(waiting, "message")} waiting — pollen_inbox to read\n`);
   }
 
   // Counted apart from the above: these need a person, not a pollen_inbox.
-  const held = heldPending(id).length;
-  if (held) {
-    process.stdout.write(`[pollen] ${held} knock${held === 1 ? "" : "s"} waiting at the gate — pollen_allow or pollen_deny\n`);
+  const knocking = heldByPeer(id);
+  if (knocking.size) {
+    const n = [...knocking.values()].reduce((a, b) => a + b, 0);
+    process.stdout.write(`[pollen] ${plural(n, "knock")} waiting at the gate from ${[...knocking.keys()].join(", ")} — pollen_allow or pollen_deny\n`);
   }
 
   watch(journal, pump);
