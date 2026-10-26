@@ -195,6 +195,26 @@ function lastSeen(id) {
   catch { return null; }
 }
 
+// What became of the messages `from` sent to `id`, read off id's journal and
+// cursor: the receiver already records all of it, so no receipt is sent.
+// Returns "" when `from` has sent nothing.
+function readState(id, from) {
+  const cursor = readCursor(id);
+  const sent = readJournal(id).filter((e) => e.from === from);
+  const mine = sent.filter((e) => e.status === "delivered");
+  const n = mine.length;
+  const u = mine.filter((e) => e.seq > cursor).length;
+  const h = heldPending(id).filter((e) => e.from === from).length;
+  const d = sent.filter((e) => e.status === "denied").length;
+  const parts = [];
+  if (n && !u) parts.push(n === 1 ? "has read your message" : `has read all ${n} of your messages`);
+  else if (n && u === n) parts.push(n === 1 ? "has not read your message" : `has not read your ${n} messages`);
+  else if (n) parts.push(`has not read ${u} of your ${n} messages`);
+  if (h) parts.push(`holds ${h === 1 ? "your message" : `${h} of your messages`} at the gate`);
+  if (d) parts.push(`denied ${d === 1 ? "your message" : `${d} of your messages`}`);
+  return parts.join("; ");
+}
+
 function plural(n, word) { return `${n} ${word}${n === 1 ? "" : "s"}`; }
 
 // =============================================================================
@@ -293,7 +313,7 @@ function startAgent() {
         instructions: [
           `You are agent "${ID}", a peer on pollen.`,
           `Incoming messages appear as <channel> tags with a "from" attribute.`,
-          `Use pollen_send to reach another peer. Use pollen_agents to see who is reachable.`,
+          `Use pollen_send to reach another peer. Use pollen_agents to see who is reachable and whether they have read what you sent, so there is no need to ask a peer to acknowledge.`,
           `Use pollen_inbox to read what has arrived. A stranger is held at the gate. ${ASK}`,
           `Do not poll for messages. Run "${RUN} --watch ${ID}" with your harness's line-event tool (in Claude Code that is Monitor; a background Bash task only reports when it exits). It prints one line the moment anything lands; then call pollen_inbox. If you pipe it, every later stage must flush per line.`,
           `To reach peers on other machines: run "${RUN} --relay" then expose it with "cloudflared tunnel --url http://localhost:4747" (free, no account needed).`,
@@ -333,7 +353,7 @@ function startAgent() {
     },
     {
       name: "pollen_agents",
-      description: "List the peers you can reach",
+      description: "List the peers you can reach, whether each is running, and whether they have read what you sent",
       inputSchema: { type: "object", properties: {} },
     },
     {
@@ -389,7 +409,7 @@ function startAgent() {
     },
     async pollen_agents() {
       const list = await tx.agents();
-      return text(list.join(", ") || "No peers reachable.");
+      return text(list.join("\n") || "No peers reachable.");
     },
     async pollen_allow({ agent }) {
       // The allow file holds one id per line, so an id with a line break in it
@@ -506,9 +526,10 @@ function startAgent() {
         return readdirSync(DIR)
           .filter((d) => d !== ID && existsSync(join(DIR, d, "inbox")))
           .map((d) => {
-            if (runningServer(d)) return `${d} (running)`;
             const seen = lastSeen(d);
-            return seen ? `${d} (not running, last seen ${seen})` : `${d} (not running)`;
+            const status = runningServer(d) ? "running" : seen ? `not running, last seen ${seen}` : "not running";
+            const state = readState(d, ID);
+            return `${d} (${status})${state ? ` — ${state}` : ""}`;
           });
       },
       listen(cb) {
