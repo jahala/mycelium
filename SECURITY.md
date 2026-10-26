@@ -23,6 +23,8 @@ person calls `pollen_allow`. Everything below is what that does and does not cov
 can read any agent's journal, including messages that were held at the gate. The gate
 decides what reaches an *agent's context*, not what is readable on disk. If a message
 would be damaging to disclose to another local process, pollen is the wrong carrier.
+The same holds for trust: peers let in with `pollen_allow` are listed in
+`POLLEN_DIR/<id>/allow`, and any process running as you can add a name there.
 
 The journal is append-only and never rotated, so message text persists for the life of
 the directory rather than being consumed on read. Under `/tmp` the OS clears it on

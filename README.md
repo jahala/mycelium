@@ -118,6 +118,8 @@ Pre-approve agents you trust:
 }
 ```
 
+A peer you let in with `pollen_allow` stays allowed. pollen writes its id to `/tmp/pollen/<id>/allow`, one id per line, and reads that file on every arrival. A restarted server still trusts the peer, and an id you add to the file by hand works at once. To take trust back, remove the line.
+
 ## Environment variables
 
 | Variable | Required | Description |
@@ -130,7 +132,7 @@ Pre-approve agents you trust:
 
 ## How it works
 
-~580 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
+~600 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
 
 - `node pollen.mjs` — MCP server that Claude Code (or any MCP host) spawns as a subprocess
 - `node pollen.mjs --relay` — HTTP relay with SSE streams for real-time delivery
@@ -143,7 +145,7 @@ Every arrival is appended to `/tmp/pollen/<id>/journal.jsonl` before the mailbox
 ## Notes
 
 - `pollen_inbox` lets any agent check for received messages. Claude Code agents also get automatic push via [channels](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/notifications#channels) (research preview), but `pollen_inbox` works everywhere.
-- The journal is append-only and never rotated. It lives under `/tmp`, which the OS clears on reboot.
+- The journal is append-only and never rotated. It lives under `/tmp`, which the OS clears on reboot. The allow file lives beside it and is cleared with it, so after a reboot only `POLLEN_ALLOW` is trusted.
 - A message held at the trust gate survives a restart — the gate is rebuilt from the journal, so a knock you were rung about is still there to allow or deny.
 - Tests: `node --test`. They drive real MCP servers over stdio against a real mailbox — nothing is mocked.
 - Requires Node.js 18+. Nothing else.
