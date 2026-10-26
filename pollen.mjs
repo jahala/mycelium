@@ -124,8 +124,9 @@ function startRelay() {
 // as one JSON line and never removed. That makes it both the inbox (messages
 // survive a server restart) and the one file a watcher can tail.
 //
-// `seq` counts from 1 with no gaps, so entry N is line N. `cursor` holds the
-// seq of the last message the agent actually read.
+// `seq` is one more than the highest seq in the file when the entry is
+// written, so it stays unique even if two processes append to one journal.
+// `cursor` holds the seq of the last message the agent actually read.
 
 function journalPath(id) { return join(DIR, id, "journal.jsonl"); }
 function cursorPath(id) { return join(DIR, id, "cursor"); }
@@ -138,6 +139,10 @@ function readJournal(id) {
     // Blank tail, or a line caught mid-append — the next read gets it whole.
     try { return JSON.parse(line); } catch { return []; }
   });
+}
+
+function topSeq(id) {
+  return readJournal(id).reduce((top, e) => Math.max(top, e.seq ?? 0), 0);
 }
 
 function readCursor(id) {
@@ -185,7 +190,6 @@ function startAgent() {
   const pending = new Map(); // agent → [{ from, message, seq }]
 
   mkdirSync(join(DIR, ID), { recursive: true });
-  let seq = readJournal(ID).pop()?.seq ?? 0;
 
   // The journal is what rings the gate, so the gate is rebuilt from it — a
   // knock the watcher reports has to still be there to allow or deny.
@@ -194,7 +198,11 @@ function startAgent() {
   }
 
   function record(from, message, status, resolves) {
-    const entry = { seq: ++seq, ts: new Date().toISOString(), from, message, status };
+    // Numbered from the journal at write time, not from a counter taken at
+    // start: another process may have appended since, and a reused seq hides
+    // a message behind the cursor.
+    const seq = topSeq(ID) + 1;
+    const entry = { seq, ts: new Date().toISOString(), from, message, status };
     if (resolves !== undefined) entry.resolves = resolves;
     appendFileSync(journalPath(ID), JSON.stringify(entry) + "\n");
     return entry.seq;
@@ -213,6 +221,12 @@ function startAgent() {
       // still owed an answer — an unanswered request hangs it forever.
       if (msg.id !== undefined) reply(msg.id, text(`Request failed: ${e.message}`));
     }
+  }).on("close", () => {
+    // The host is gone. Stop listening and let the process end on its own once
+    // any reply still in flight is written. A server left running would keep
+    // taking this agent's messages, and its seq counter would collide with the
+    // next server started for the same id.
+    tx.close();
   });
 
   function send(msg) {
@@ -398,6 +412,7 @@ function startAgent() {
   function localTransport() {
     const inbox = join(DIR, ID, "inbox");
     mkdirSync(inbox, { recursive: true });
+    let watcher;
 
     // Reading the file is what claims it — fs.watch fires twice for one file
     // and the second pass finds it gone. The unlink comes after the callback
@@ -435,7 +450,7 @@ function startAgent() {
         if (!existsSync(target)) return "unknown-agent";
         // Baseline the receiver's journal before handing the message over, so
         // whatever turns up afterwards is provably ours and not an earlier one.
-        const since = readJournal(to).pop()?.seq ?? 0;
+        const since = topSeq(to);
         const name = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}_from_${ID}`;
         // Write beside the mailbox, then rename in. The receiver is watching
         // this directory, and rename is the only way to put a whole file in
@@ -451,10 +466,11 @@ function startAgent() {
         );
       },
       listen(cb) {
-        watch(inbox, (_, f) => {
+        watcher = watch(inbox, (_, f) => {
           if (f?.endsWith(".msg")) consume(join(inbox, f), f, cb);
         });
       },
+      close() { watcher?.close(); },
       drain(cb) {
         for (const f of readdirSync(inbox).filter((f) => f.endsWith(".msg"))) {
           consume(join(inbox, f), f, cb);
@@ -464,6 +480,9 @@ function startAgent() {
   }
 
   function relayTransport(relay) {
+    let closed = false;
+    let stream;    // the open /listen request
+    let reconnect; // the timer that will open the next one
     return {
       // The trust gate runs in the receiver's process, on the far side of the
       // relay, and its verdict has no route back here. Cross-machine senders
@@ -488,12 +507,12 @@ function startAgent() {
         function connect() {
           let reconnecting = false;
           const retry = (e) => {
-            if (reconnecting) return; // end and error can both fire
+            if (reconnecting || closed) return; // end and error can both fire
             reconnecting = true;
             if (e) process.stderr.write(`pollen relay error: ${e.message}\n`);
-            setTimeout(connect, 1000);
+            reconnect = setTimeout(connect, 1000);
           };
-          http.get(`${relay}/listen/${ID}`, (res) => {
+          stream = http.get(`${relay}/listen/${ID}`, (res) => {
             createInterface({ input: res }).on("line", (line) => {
               if (!line.startsWith("data: ")) return; // comments and frame breaks
               try {
@@ -508,6 +527,11 @@ function startAgent() {
         connect();
       },
       drain() {}, // relay drains on SSE connect
+      close() {
+        closed = true;
+        clearTimeout(reconnect);
+        stream?.destroy();
+      },
     };
   }
 
