@@ -12,6 +12,8 @@
 //   POLLEN_ALLOW    optional — comma-separated trusted agent IDs
 //   POLLEN_DIR      optional — mailbox root (default /tmp/pollen)
 //
+// Peers let in with pollen_allow are kept in POLLEN_DIR/<id>/allow, one per line.
+//
 // Relay mode env:
 //   POLLEN_PORT     optional — listen port (default 4747)
 //
@@ -127,6 +129,7 @@ function startRelay() {
 
 function journalPath(id) { return join(DIR, id, "journal.jsonl"); }
 function cursorPath(id) { return join(DIR, id, "cursor"); }
+function allowPath(id) { return join(DIR, id, "allow"); }
 
 function readJournal(id) {
   let raw = "";
@@ -163,9 +166,22 @@ function startAgent() {
   const ID = process.env.POLLEN_ID;
   if (!ID) { process.stderr.write("POLLEN_ID is required. pollen cannot start without an id; set it in the env of your .mcp.json entry.\n"); process.exit(1); }
 
-  const trusted = new Set(
-    (process.env.POLLEN_ALLOW ?? "").split(",").filter(Boolean)
-  );
+  const preAllowed = (process.env.POLLEN_ALLOW ?? "").split(",").filter(Boolean);
+
+  // pollen_allow writes to a file because the env var is fixed for the life of
+  // the process. The file is read on every arrival rather than cached, so it is
+  // the one record of who was let in: it survives a restart, and an edit by a
+  // person or a second server with the same id takes effect at once.
+  function allowed() {
+    let raw = "";
+    try { raw = readFileSync(allowPath(ID), "utf-8"); } catch {}
+    return raw.split("\n").map((l) => l.trim()).filter(Boolean);
+  }
+
+  function trusts(from) {
+    return preAllowed.includes(from) || allowed().includes(from);
+  }
+
   const pending = new Map(); // agent → [{ from, message, seq }]
 
   mkdirSync(join(DIR, ID), { recursive: true });
@@ -272,7 +288,7 @@ function startAgent() {
     },
     {
       name: "pollen_allow",
-      description: "Allow a peer held at the gate to reach you",
+      description: "Allow a peer to reach you, now and after a restart, and deliver anything they have waiting at the gate",
       inputSchema: {
         type: "object",
         properties: {
@@ -323,7 +339,12 @@ function startAgent() {
       return text(list.join(", ") || "No peers reachable.");
     },
     async pollen_allow({ agent }) {
-      trusted.add(agent);
+      // The allow file holds one id per line, so an id with a line break in it
+      // would let in a second peer nobody named.
+      if (!agent || /[\s,]/.test(agent)) {
+        return text(`Cannot allow ${JSON.stringify(agent)}: a peer id has no spaces, commas or line breaks. Nobody was allowed. Check the id with pollen_agents.`);
+      }
+      if (!trusts(agent)) appendFileSync(allowPath(ID), agent + "\n");
       const held = pending.get(agent) ?? [];
       if (held.length) {
         pending.delete(agent);
@@ -357,7 +378,7 @@ function startAgent() {
   // --- trust gate -----------------------------------------------------------
 
   function onMessage(from, message) {
-    if (trusted.has(from)) {
+    if (trusts(from)) {
       record(from, message, "delivered");
       notify(message, { from });
     } else {

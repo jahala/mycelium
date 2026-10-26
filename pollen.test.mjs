@@ -7,7 +7,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { createInterface } from "node:readline";
@@ -323,4 +323,40 @@ test("--watch survives the journal being wiped under it", async () => {
   );
   await waitFor("the line after the wipe", () => eyes.lines.length === 2);
   assert.match(eyes.lines[1], /message from milo — pollen_inbox to read: after/);
+});
+
+test("a peer allowed once stays allowed after a restart", async () => {
+  const ada = agent("ada");               // trusts nobody
+  const bo = agent("bo");
+  await Promise.all([ada.ready(), bo.ready()]);
+
+  await bo.tool("pollen_send", { to: "ada", message: "let me in" });
+  await ada.tool("pollen_allow", { agent: "bo" });
+
+  // POLLEN_ALLOW is fixed when the server starts. A pollen_allow that lived
+  // only in memory would be forgotten here and hold bo at the gate again.
+  await ada.stop();
+  const revived = agent("ada");
+  await revived.ready();
+
+  assert.equal(await bo.tool("pollen_send", { to: "ada", message: "back again" }), "Sent to ada.");
+});
+
+test("an allow written to the file takes effect without a restart", async () => {
+  const cy = agent("cy");                 // trusts nobody
+  const dot = agent("dot");
+  await Promise.all([cy.ready(), dot.ready()]);
+
+  // A person, or a second pollen with the same id, allows dot while cy runs.
+  writeFileSync(join(DIR, "cy", "allow"), "dot\n");
+
+  assert.equal(await dot.tool("pollen_send", { to: "cy", message: "hello" }), "Sent to cy.");
+});
+
+test("pollen_allow refuses an id that would write more than one peer", async () => {
+  const eli = agent("eli");
+  await eli.ready();
+
+  assert.match(await eli.tool("pollen_allow", { agent: "fay\nmallory" }), /^Cannot allow/);
+  assert.equal(existsSync(join(DIR, "eli", "allow")), false);
 });
