@@ -138,6 +138,22 @@ function readJournal(id) {
   });
 }
 
+// `seq` is numbered from the journal at write time, not from a counter taken at
+// start: another process may have appended since, and a reused seq hides a
+// message behind the cursor. `fields` may carry its own ts, for an entry moved
+// from another journal that should keep the time it first arrived.
+function appendEntry(id, fields) {
+  const entry = { seq: topSeq(id) + 1, ts: new Date().toISOString(), ...fields };
+  appendFileSync(journalPath(id), JSON.stringify(entry) + "\n");
+  return entry;
+}
+
+function allowedBy(id) {
+  let raw = "";
+  try { raw = readFileSync(allowPath(id), "utf-8"); } catch {}
+  return raw.split("\n").map((l) => l.trim()).filter(Boolean);
+}
+
 function topSeq(id) {
   return readJournal(id).reduce((top, e) => Math.max(top, e.seq ?? 0), 0);
 }
@@ -178,17 +194,34 @@ function heldByPeer(id) {
 const HEARTBEAT = 5000;
 const STALE = 4 * HEARTBEAT;
 
+function serverFile(id) {
+  try { return JSON.parse(readFileSync(serverPath(id), "utf-8")); } catch { return null; }
+}
+
+// Write beside, then rename in, so a reader never sees half a file.
+function writeServerFile(id, content) {
+  mkdirSync(join(DIR, id), { recursive: true });
+  const part = join(DIR, id, `.server.json.${process.pid}`);
+  writeFileSync(part, JSON.stringify(content));
+  renameSync(part, serverPath(id));
+}
+
 function runningServer(id) {
   let pid;
   try {
     if (Date.now() - statSync(serverPath(id)).mtimeMs > STALE) return null;
-    pid = JSON.parse(readFileSync(serverPath(id), "utf-8")).pid;
+    pid = serverFile(id)?.pid;
+    if (!pid) return null; // released by a rename
     process.kill(pid, 0); // signal 0 delivers nothing; it only asks if pid exists
     return pid;
   } catch (e) {
     return e.code === "EPERM" ? pid : null; // exists, but belongs to another user
   }
 }
+
+// The id an agent took with pollen_rename, left behind so its old name can
+// point senders at the new one.
+function movedTo(id) { return serverFile(id)?.movedTo ?? null; }
 
 function lastSeen(id) {
   try { return statSync(serverPath(id)).mtime.toISOString().slice(0, 16).replace("T", " ") + "Z"; }
@@ -223,7 +256,7 @@ function plural(n, word) { return `${n} ${word}${n === 1 ? "" : "s"}`; }
 
 function startAgent() {
   const RELAY = process.env.POLLEN_RELAY;
-  const ID = process.env.POLLEN_ID;
+  let ID = process.env.POLLEN_ID; // changes only through pollen_rename
   if (!ID) { process.stderr.write("POLLEN_ID is required. pollen cannot start without an id; set it in the env of your .mcp.json entry.\n"); process.exit(1); }
 
   const preAllowed = (process.env.POLLEN_ALLOW ?? "").split(",").filter(Boolean);
@@ -232,27 +265,14 @@ function startAgent() {
   // the process. The file is read on every arrival rather than cached, so it is
   // the one record of who was let in: it survives a restart, and an edit by a
   // person or a second server with the same id takes effect at once.
-  function allowed() {
-    let raw = "";
-    try { raw = readFileSync(allowPath(ID), "utf-8"); } catch {}
-    return raw.split("\n").map((l) => l.trim()).filter(Boolean);
-  }
-
   function trusts(from) {
-    return preAllowed.includes(from) || allowed().includes(from);
+    return preAllowed.includes(from) || allowedBy(ID).includes(from);
   }
 
   mkdirSync(join(DIR, ID), { recursive: true });
 
   function record(from, message, status, resolves) {
-    // Numbered from the journal at write time, not from a counter taken at
-    // start: another process may have appended since, and a reused seq hides
-    // a message behind the cursor.
-    const seq = topSeq(ID) + 1;
-    const entry = { seq, ts: new Date().toISOString(), from, message, status };
-    if (resolves !== undefined) entry.resolves = resolves;
-    appendFileSync(journalPath(ID), JSON.stringify(entry) + "\n");
-    return entry;
+    return appendEntry(ID, { from, message, status, resolves });
   }
 
   // A delivered message, pushed to the agent as a <channel> tag. The seq and
@@ -315,6 +335,7 @@ function startAgent() {
           `Incoming messages appear as <channel> tags with a "from" attribute.`,
           `Use pollen_send to reach another peer. Use pollen_agents to see who is reachable and whether they have read what you sent, so there is no need to ask a peer to acknowledge.`,
           `Use pollen_inbox to read what has arrived. A stranger is held at the gate. ${ASK}`,
+          `If you are expected under a different id, take it with pollen_rename.`,
           `Do not poll for messages. Run "${RUN} --watch ${ID}" with your harness's line-event tool (in Claude Code that is Monitor; a background Bash task only reports when it exits). It prints one line the moment anything lands; then call pollen_inbox. If you pipe it, every later stage must flush per line.`,
           `To reach peers on other machines: run "${RUN} --relay" then expose it with "cloudflared tunnel --url http://localhost:4747" (free, no account needed).`,
           `Give the resulting URL to the user so they can pass it to the remote peer as POLLEN_RELAY.`,
@@ -331,7 +352,8 @@ function startAgent() {
       const fn = toolHandlers[name];
       if (!fn) return reply(msg.id, text(`Unknown tool: ${name}`));
       if (standingAside) holdId(); // the other server may have gone since
-      if (standingAside) return reply(msg.id, text(clash(standingAside)));
+      // pollen_rename stays open: taking an id of its own is the way out.
+      if (standingAside && name !== "pollen_rename") return reply(msg.id, text(clash(standingAside)));
       return reply(msg.id, await fn(args));
     }
   }
@@ -383,6 +405,17 @@ function startAgent() {
       description: "Read the messages that have arrived",
       inputSchema: { type: "object", properties: {} },
     },
+    {
+      name: "pollen_rename",
+      description: "Take a different peer id for the rest of this session, such as the one your director expects. Unread messages, knocks and allowed peers come with you.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string", description: "The id to take" },
+        },
+        required: ["id"],
+      },
+    },
   ];
 
   function text(t) {
@@ -391,6 +424,10 @@ function startAgent() {
 
   const toolHandlers = {
     async pollen_send({ to, message }) {
+      const moved = !RELAY && movedTo(to);
+      if (moved && !runningServer(to)) {
+        return text(`${to} is now ${moved}. The message was not sent; send it to ${moved}.`);
+      }
       const status = await tx.send(to, message);
       if (status === "queued" && !runningServer(to)) {
         return text(`Queued for ${to} — ${to}'s pollen is not running. The message waits in the mailbox until ${to} starts.`);
@@ -450,6 +487,57 @@ function startAgent() {
       const held = [...heldByPeer(ID)].map(([peer, n]) => `${peer} (${plural(n, "message")})`);
       if (!held.length) return text(read);
       return text(`${read}\nHeld at the gate: ${held.join(", ")}. ${ASK}`);
+    },
+    // A launcher names an agent before anyone knows what its director will
+    // call it, and the env cannot change once the server runs. Taking the id
+    // here means no restart and no second pollen beside the session's own.
+    async pollen_rename({ id }) {
+      // The id becomes a directory and part of a filename.
+      if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
+        return text(`Cannot take ${JSON.stringify(id)}: an id is letters, digits, dots, dashes and underscores, starting with a letter or digit. Nothing changed.`);
+      }
+      if (id === ID) return text(`You are already "${id}".`);
+      const holder = runningServer(id);
+      if (holder) {
+        return text(`Cannot take "${id}": another pollen server (pid ${holder}) is running as it. Nothing changed. Pick another id, or ask the user which agent should have it.`);
+      }
+
+      const old = ID;
+      // The old mailbox is ours to hand over only if we held it. A server that
+      // was standing aside leaves it to the server that does.
+      const ours = !standingAside;
+      if (listening) { listening = false; tx.close(); }
+      ID = id;
+      mkdirSync(join(DIR, ID), { recursive: true });
+      tx = transport();
+
+      let messages = 0, knocks = 0;
+      if (ours) {
+        const waiting = [...unread(old), ...heldPending(old)].sort((a, b) => a.seq - b.seq);
+        for (const e of waiting) {
+          appendEntry(ID, { ts: e.ts, from: e.from, message: e.message, status: e.status });
+          if (e.status !== "pending") { messages++; continue; }
+          knocks++;
+          // Settled on the old side so its gate stops counting the knock. The
+          // text is not repeated: it lives on in the new journal.
+          appendEntry(old, { from: e.from, message: "", status: "moved", resolves: e.seq });
+        }
+        writeFileSync(cursorPath(old), String(topSeq(old)));
+        const kept = allowedBy(ID);
+        for (const peer of allowedBy(old)) if (!kept.includes(peer)) appendFileSync(allowPath(ID), peer + "\n");
+        writeServerFile(old, { pid: null, movedTo: ID });
+      }
+
+      standingAside = null;
+      holdId(false);
+      if (standingAside) return text(clash(standingAside));
+      const came = [messages && plural(messages, "unread message"), knocks && plural(knocks, "knock")].filter(Boolean);
+      return text([
+        `You are now "${ID}" on pollen, no longer "${old}".`,
+        came.length ? `${came.join(" and ")} came with you.` : "",
+        ours ? `Anyone who writes to ${old} is told your new id.` : "",
+        `Restart your watcher as "${RUN} --watch ${ID}".`,
+      ].filter(Boolean).join(" "));
     },
   };
 
@@ -526,6 +614,9 @@ function startAgent() {
         return readdirSync(DIR)
           .filter((d) => d !== ID && existsSync(join(DIR, d, "inbox")))
           .map((d) => {
+            // Its mail went along with it, so the new id is all there is to say.
+            const moved = movedTo(d);
+            if (moved && !runningServer(d)) return `${d} (now ${moved})`;
             const seen = lastSeen(d);
             const status = runningServer(d) ? "running" : seen ? `not running, last seen ${seen}` : "not running";
             const state = readState(d, ID);
@@ -603,7 +694,8 @@ function startAgent() {
     };
   }
 
-  const tx = RELAY ? relayTransport(RELAY) : localTransport();
+  const transport = () => (RELAY ? relayTransport(RELAY) : localTransport());
+  let tx = transport(); // replaced when pollen_rename moves the agent to a new mailbox
 
   // --- go -------------------------------------------------------------------
 
@@ -639,7 +731,7 @@ function startAgent() {
   let standingAside = null; // pid of the server holding our id
   let listening = false;
 
-  function holdId() {
+  function holdId(announce = true) {
     const holder = runningServer(ID);
     if (holder === process.pid) {
       try {
@@ -653,15 +745,11 @@ function startAgent() {
       if (listening) { listening = false; tx.close(); }
       return;
     }
-    // Write beside, then rename in, so a reader never sees half a file.
-    mkdirSync(join(DIR, ID), { recursive: true });
-    const part = join(DIR, ID, `.server.json.${process.pid}`);
-    writeFileSync(part, JSON.stringify({ pid: process.pid }));
-    renameSync(part, serverPath(ID));
+    writeServerFile(ID, { pid: process.pid });
     standingAside = null;
     if (!listening) {
       listening = true;
-      announceWaiting();
+      if (announce) announceWaiting();
       tx.drain(onMessage);
       tx.listen(onMessage);
     }
@@ -670,7 +758,7 @@ function startAgent() {
   function clash(pid) {
     return `pollen is not running for "${ID}": another pollen server (pid ${pid}) already uses this id. ` +
       `Two agents on one id take each other's messages, so this one stays off. ` +
-      `Ask the user to give this agent its own POLLEN_ID, or to stop the other agent.`;
+      `Take an id of your own with pollen_rename, or ask the user to stop the other agent.`;
   }
 
   holdId();
@@ -709,8 +797,9 @@ function startWatch(id) {
 
   function line(e) {
     // A denial is a settlement entry, not an arrival. Ringing it out would put
-    // the text the human just rejected on the very channel they watch.
-    if (e.status === "denied") return null;
+    // the text the human just rejected on the very channel they watch. A knock
+    // moved away by pollen_rename is settled the same way and rings on the new id.
+    if (e.status === "denied" || e.status === "moved") return null;
     if (e.status === "pending") {
       return `[pollen] ${e.from} is knocking — pollen_allow or pollen_deny`;
     }

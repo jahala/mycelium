@@ -573,3 +573,56 @@ test("pollen_agents says when a peer holds or denies your message at the gate", 
   await cass.tool("pollen_deny", { agent: "dov" });
   assert.match(await dov.tool("pollen_agents"), /^cass \(running\) — denied your message$/m);
 });
+
+test("pollen_rename takes the id a director expects, and the mail comes along", async () => {
+  // The launcher named this agent after its worktree; its director expects
+  // "quad" and has pre-allowed only that.
+  const dou = agent("dou", { POLLEN_ALLOW: "kit" });
+  const boss = agent("boss", { POLLEN_ALLOW: "quad" });
+  const kit = agent("kit", { POLLEN_ALLOW: "dou,quad" });
+  const zip = agent("zip");
+  await Promise.all([dou.ready(), boss.ready(), kit.ready(), zip.ready()]);
+
+  await kit.tool("pollen_send", { to: "dou", message: "before the rename" });
+  await zip.tool("pollen_send", { to: "dou", message: "held text" });
+  const eyes = watcher("dou");
+  await waitFor("the watcher's startup lines", () => eyes.lines.length === 2);
+
+  assert.match(await dou.tool("pollen_rename", { id: "quad" }), /^You are now "quad" on pollen, no longer "dou"\. 1 unread message and 1 knock came with you\./);
+  assert.equal(plain(await dou.tool("pollen_inbox")), "[kit]: before the rename\nHeld at the gate: zip (1 message). Ask the user before calling pollen_allow or pollen_deny.");
+  assert.equal(await dou.tool("pollen_send", { to: "boss", message: "reporting in" }), "Sent to boss.");
+
+  // Whoever still writes to the old id is pointed at the new one.
+  assert.equal(
+    await kit.tool("pollen_send", { to: "dou", message: "where did you go" }),
+    `dou is now quad. The message was not sent; send it to quad.`,
+  );
+  assert.match(await kit.tool("pollen_agents"), /^dou \(now quad\)$/m);
+
+  // Carrying the knock over must not ring anything out on the old journal.
+  await sleep(300);
+  assert.equal(eyes.lines.length, 2, `the rename rang: ${eyes.lines.slice(2).join(" | ")}`);
+});
+
+test("a server standing aside can rename its way out", async () => {
+  const first = agent("mo");
+  await first.ready();
+  const second = agent("mo");
+  await second.ready();
+
+  assert.match(await second.tool("pollen_inbox"), /^pollen is not running for "mo"/);
+  assert.match(await second.tool("pollen_rename", { id: "mo2" }), /^You are now "mo2" on pollen, no longer "mo"\./);
+  assert.equal(await second.tool("pollen_inbox"), "No new messages.");
+
+  // The id it left belongs to the first server, which is untouched.
+  assert.match(await second.tool("pollen_agents"), /^mo \(running\)$/m);
+});
+
+test("pollen_rename refuses an id that is taken or unsafe", async () => {
+  const rex = agent("rex");
+  const sid = agent("sid");
+  await Promise.all([rex.ready(), sid.ready()]);
+
+  assert.match(await rex.tool("pollen_rename", { id: "../escape" }), /^Cannot take "\.\.\/escape"/);
+  assert.match(await rex.tool("pollen_rename", { id: "sid" }), /^Cannot take "sid": another pollen server \(pid \d+\) is running as it\./);
+});
