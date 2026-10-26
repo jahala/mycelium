@@ -9,7 +9,7 @@
 // Agent mode env:
 //   POLLEN_ID       required — agent name
 //   POLLEN_RELAY    optional — relay URL for cross-machine
-//   POLLEN_ALLOW    optional — comma-separated trusted agent IDs
+//   POLLEN_ALLOW    optional — comma-separated trusted agent IDs, or * for anyone
 //   POLLEN_DIR      optional — mailbox root (default /tmp/pollen)
 //
 // Peers let in with pollen_allow are kept in POLLEN_DIR/<id>/allow, one per line.
@@ -265,8 +265,11 @@ function startAgent() {
   // the process. The file is read on every arrival rather than cached, so it is
   // the one record of who was let in: it survives a restart, and an edit by a
   // person or a second server with the same id takes effect at once.
+  // "*" opens the gate to anyone. It is never the default: a person sets it in
+  // the env, or an agent writes it with pollen_allow after asking its person.
   function trusts(from) {
-    return preAllowed.includes(from) || allowedBy(ID).includes(from);
+    const list = [...preAllowed, ...allowedBy(ID)];
+    return list.includes("*") || list.includes(from);
   }
 
   mkdirSync(join(DIR, ID), { recursive: true });
@@ -380,11 +383,11 @@ function startAgent() {
     },
     {
       name: "pollen_allow",
-      description: "Allow a peer to reach you, now and after a restart, and deliver anything they have waiting at the gate",
+      description: "Allow a peer to reach you, now and after a restart, and deliver anything they have waiting at the gate. \"*\" allows everyone; use it only when the user says so",
       inputSchema: {
         type: "object",
         properties: {
-          agent: { type: "string", description: "Peer id to allow" },
+          agent: { type: "string", description: "Peer id to allow, or * for everyone" },
         },
         required: ["agent"],
       },
@@ -454,10 +457,17 @@ function startAgent() {
       if (!agent || /[\s,]/.test(agent)) {
         return text(`Cannot allow ${JSON.stringify(agent)}: a peer id has no spaces, commas or line breaks. Nobody was allowed. Check the id with pollen_agents.`);
       }
-      if (!trusts(agent)) appendFileSync(allowPath(ID), agent + "\n");
+      const everyone = agent === "*";
+      const already = everyone ? [...preAllowed, ...allowedBy(ID)].includes("*") : trusts(agent);
+      if (!already) appendFileSync(allowPath(ID), agent + "\n");
       // The gate is read from the journal, not kept in memory: a knock taken in
       // before a restart, or by another process, is just as much ours to settle.
-      const held = heldPending(ID).filter((e) => e.from === agent);
+      const held = heldPending(ID).filter((e) => everyone || e.from === agent);
+      if (everyone) {
+        for (const m of held) deliver(record(m.from, m.message, "delivered", m.seq));
+        const sent = held.length ? `${plural(held.length, "held message")} delivered. ` : "";
+        return text(`Opened the gate to everyone, now and after a restart. ${sent}To close it again, remove the "*" line from ${allowPath(ID)}.`);
+      }
       if (held.length) {
         for (const m of held) {
           deliver(record(m.from, m.message, "delivered", m.seq));
