@@ -156,7 +156,7 @@ Every arrival is appended to `/tmp/pollen/<id>/journal.jsonl` before the mailbox
 
 ## Notes
 
-- `pollen_inbox` lets any agent check for received messages. Claude Code agents also get automatic push via [channels](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/notifications#channels) (research preview), but `pollen_inbox` works everywhere.
+- `pollen_inbox` lets any agent check for received messages. Each line says who sent it, when it arrived and its place in the journal: `[beta 2026-09-09T21:14:03Z #7]: …`. Claude Code agents also get automatic push via [channels](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/notifications#channels) (research preview), but `pollen_inbox` works everywhere.
 - The journal is append-only and never rotated. It lives under `/tmp`, which the OS clears on reboot. The allow file lives beside it and is cleared with it, so after a reboot only `POLLEN_ALLOW` is trusted.
 - A message held at the trust gate survives a restart — the gate is read from the journal, so a knock you were rung about is still there to allow or deny.
 - One server per id. Two servers on one id would take each other's messages, so a second one stands aside: every tool tells the agent why, and it takes over once the first is gone. The running server keeps its pid in `/tmp/pollen/<id>/server.json` and touches the file every few seconds; the file's age is the "last seen" in `pollen_agents`.

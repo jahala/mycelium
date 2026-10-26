@@ -106,6 +106,12 @@ function taken(id) {
   catch { return false; }
 }
 
+// Inbox lines carry when each message arrived and its journal seq. Most tests
+// are about what was said and by whom, so they compare without the stamp.
+function plain(inbox) {
+  return inbox.replace(/^\[(\S+) \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ #\d+\]:/gm, "[$1]:");
+}
+
 async function waitFor(what, predicate, timeout = 5000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -130,7 +136,7 @@ test("an unread message survives a server restart", async () => {
 
   const revived = agent("alpha", { POLLEN_ALLOW: "beta" });
   await revived.ready();
-  assert.equal(await revived.tool("pollen_inbox"), "[beta]: the Q4 files are in /tmp/drop");
+  assert.equal(plain(await revived.tool("pollen_inbox")), "[beta]: the Q4 files are in /tmp/drop");
 });
 
 test("a message is handed over once, not on every check", async () => {
@@ -142,8 +148,8 @@ test("a message is handed over once, not on every check", async () => {
   await dan.tool("pollen_send", { to: "carla", message: "second" });
   await waitFor("both messages to land", () => taken("carla"));
 
-  assert.equal(await carla.tool("pollen_inbox"), "[dan]: first\n[dan]: second");
-  assert.equal(await carla.tool("pollen_inbox"), "No new messages.");
+  assert.equal(plain(await carla.tool("pollen_inbox")), "[dan]: first\n[dan]: second");
+  assert.equal(plain(await carla.tool("pollen_inbox")), "No new messages.");
 });
 
 test("the trust gate holds a stranger's message out of the inbox", async () => {
@@ -161,7 +167,7 @@ test("the trust gate holds a stranger's message out of the inbox", async () => {
   );
 
   assert.match(await erin.tool("pollen_allow", { agent: "frank" }), /has been delivered/);
-  assert.equal(await erin.tool("pollen_inbox"), "[frank]: let me in");
+  assert.equal(plain(await erin.tool("pollen_inbox")), "[frank]: let me in");
 });
 
 test("--watch prints a line the moment a message lands", async () => {
@@ -216,7 +222,7 @@ test("messages route through the relay, journal and all", async () => {
 
   await otto.tool("pollen_send", { to: "nia", message: "over the air" });
   await waitFor("nia to journal it", () => journal("nia").length === 1);
-  assert.equal(await nia.tool("pollen_inbox"), "[otto]: over the air");
+  assert.equal(plain(await nia.tool("pollen_inbox")), "[otto]: over the air");
 });
 
 test("the sender is told when a message is held at the trust gate", async () => {
@@ -249,7 +255,7 @@ test("a second message from a stranger does not overwrite the first", async () =
   await waitFor("both to be journalled", () => journal("sam").length === 2);
 
   await sam.tool("pollen_allow", { agent: "tess" });
-  assert.equal(await sam.tool("pollen_inbox"), "[tess]: first\n[tess]: second");
+  assert.equal(plain(await sam.tool("pollen_inbox")), "[tess]: first\n[tess]: second");
 });
 
 test("--watch rings for messages held at the trust gate", async () => {
@@ -280,7 +286,7 @@ test("a knock held at the gate can still be allowed after a restart", async () =
   await revived.ready();
 
   assert.match(await revived.tool("pollen_allow", { agent: "zoe" }), /has been delivered/);
-  assert.equal(await revived.tool("pollen_inbox"), "[zoe]: let me in");
+  assert.equal(plain(await revived.tool("pollen_inbox")), "[zoe]: let me in");
 
   const eyes = watcher("yuri");
   await eyes.ready();
@@ -297,7 +303,7 @@ test("an unreachable relay fails the call, not the pollen", async () => {
   assert.ok(far.alive(), "the pollen died along with the request");
 
   // Still serving afterwards — a failed send must not cost the agent its radio.
-  assert.equal(await far.tool("pollen_inbox"), "No new messages.");
+  assert.equal(plain(await far.tool("pollen_inbox")), "No new messages.");
 });
 
 test("a denied message is not rung out by --watch", async () => {
@@ -418,7 +424,7 @@ test("an entry another writer appended is not numbered over", async () => {
 
   await max.tool("pollen_send", { to: "lou", message: "via this one" });
   assert.deepEqual(journal("lou").map((e) => e.seq), [1, 2]);
-  assert.equal(await lou.tool("pollen_inbox"), "[max]: via the other server\n[max]: via this one");
+  assert.equal(plain(await lou.tool("pollen_inbox")), "[max]: via the other server\n[max]: via this one");
 });
 
 test("--watch rings each arrival once when the journal repeats a seq", async () => {
@@ -463,7 +469,7 @@ test("a knock journaled by another server can be allowed", async () => {
   );
 
   assert.match(await sol.tool("pollen_allow", { agent: "tam" }), /has been delivered/);
-  assert.equal(await sol.tool("pollen_inbox"), "[tam]: let me in");
+  assert.equal(plain(await sol.tool("pollen_inbox")), "[tam]: let me in");
 });
 
 test("the instructions name a watch command that runs from anywhere", async () => {
@@ -518,5 +524,20 @@ test("a second server on the same id stands aside until the first is gone", asyn
   // Once the holder is gone, the next call takes the id over, mailbox and all.
   await first.stop();
   await bea.tool("pollen_send", { to: "xia", message: "for whoever is left" });
-  assert.equal(await second.tool("pollen_inbox"), "[bea]: for the first\n[bea]: for whoever is left");
+  assert.equal(plain(await second.tool("pollen_inbox")), "[bea]: for the first\n[bea]: for whoever is left");
+});
+
+test("pollen_inbox says when each message arrived and where it sits in the journal", async () => {
+  const nod = agent("nod", { POLLEN_ALLOW: "pax" });
+  const pax = agent("pax", { POLLEN_ALLOW: "nod" });
+  await Promise.all([nod.ready(), pax.ready()]);
+
+  await pax.tool("pollen_send", { to: "nod", message: "first" });
+  await pax.tool("pollen_send", { to: "nod", message: "second" });
+
+  // Several messages between two reads lose their order and spacing without
+  // these; the journal has had them all along.
+  const [a, b] = journal("nod");
+  const stamp = (e) => `${e.ts.slice(0, 19)}Z #${e.seq}`;
+  assert.equal(await nod.tool("pollen_inbox"), `[pax ${stamp(a)}]: first\n[pax ${stamp(b)}]: second`);
 });
