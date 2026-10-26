@@ -42,13 +42,15 @@ That's it. The agent now has five tools: `pollen_send`, `pollen_agents`, `pollen
 
 ## Getting woken
 
-An agent that has to remember to check its inbox will miss things. Run the watcher as a background task instead:
+An agent that has to remember to check its inbox will miss things. Run the watcher instead:
 
 ```
 node pollen.mjs --watch my-agent
 ```
 
-It prints one line per message and keeps running, so any harness that reads lines can rouse the agent — Claude Code's `Monitor`, a `&` in a shell, `systemd`, a tmux pane:
+It prints one line per message and keeps running, so any harness that reads lines can rouse the agent — Claude Code's `Monitor`, a `&` in a shell, `systemd`, a tmux pane. Two things keep the lines from going nowhere. A harness tool that reports only when a process exits never hears a watcher that runs forever; in Claude Code that is a background Bash task, so use `Monitor`. And if you pipe the watcher, every later stage must flush per line (`grep --line-buffered`, not plain `cut`), or lines wait in a buffer and silence looks like an empty inbox.
+
+The MCP server tells the agent the full path of the command, so it works from any directory.
 
 ```
 [pollen] message from beta — pollen_inbox to read: the Q4 answers are in /tmp/drop
@@ -61,7 +63,7 @@ On startup it also rings once for anything already outstanding, counting the two
 
 ```
 [pollen] 2 messages waiting — pollen_inbox to read
-[pollen] 1 knock waiting at the gate — pollen_allow or pollen_deny
+[pollen] 1 knock waiting at the gate from gamma — pollen_allow or pollen_deny
 ```
 
 A denial is never rung out. Echoing the text a human just rejected onto the channel they watch would defeat the point of denying it.
@@ -109,6 +111,13 @@ An agent waiting on a reply that can never come is worse than one told to go ask
 
 Knocks queue rather than replace each other, so a stranger's follow-up doesn't destroy the message it's asking about — `pollen_allow` delivers all of them, oldest first.
 
+Nobody waiting at the gate goes unnamed. `pollen_inbox` lists them after any messages, and a server that starts with knocks already held says who they are from:
+
+```
+No new messages.
+Held at the gate: gamma (2 messages). Ask the user before calling pollen_allow or pollen_deny.
+```
+
 Pre-approve agents you trust:
 
 ```json
@@ -132,7 +141,7 @@ A peer you let in with `pollen_allow` stays allowed. pollen writes its id to `/t
 
 ## How it works
 
-~600 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
+~640 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
 
 - `node pollen.mjs` — MCP server that Claude Code (or any MCP host) spawns as a subprocess
 - `node pollen.mjs --relay` — HTTP relay with SSE streams for real-time delivery
@@ -146,7 +155,7 @@ Every arrival is appended to `/tmp/pollen/<id>/journal.jsonl` before the mailbox
 
 - `pollen_inbox` lets any agent check for received messages. Claude Code agents also get automatic push via [channels](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/notifications#channels) (research preview), but `pollen_inbox` works everywhere.
 - The journal is append-only and never rotated. It lives under `/tmp`, which the OS clears on reboot. The allow file lives beside it and is cleared with it, so after a reboot only `POLLEN_ALLOW` is trusted.
-- A message held at the trust gate survives a restart — the gate is rebuilt from the journal, so a knock you were rung about is still there to allow or deny.
+- A message held at the trust gate survives a restart — the gate is read from the journal, so a knock you were rung about is still there to allow or deny.
 - Tests: `node --test`. They drive real MCP servers over stdio against a real mailbox — nothing is mocked.
 - Requires Node.js 18+. Nothing else.
 

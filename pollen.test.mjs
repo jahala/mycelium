@@ -7,7 +7,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { createInterface } from "node:readline";
@@ -39,9 +39,11 @@ function agent(id, env = {}) {
   running.push(proc);
 
   const waiting = new Map(); // request id → resolve
+  const notes = [];          // channel notifications, in arrival order
   createInterface({ input: proc.stdout }).on("line", (line) => {
     const msg = JSON.parse(line);
-    const resolve = waiting.get(msg.id); // notifications have no id
+    if (msg.method === "notifications/claude/channel") return void notes.push(msg.params.content);
+    const resolve = waiting.get(msg.id);
     if (resolve) { waiting.delete(msg.id); resolve(msg.result); }
   });
 
@@ -57,6 +59,7 @@ function agent(id, env = {}) {
   };
 
   return {
+    notes,
     ready: () => call("initialize", {}),
     tool: (name, args = {}) =>
       call("tools/call", { name, arguments: args }).then((r) => r.content[0].text),
@@ -152,7 +155,10 @@ test("the trust gate holds a stranger's message out of the inbox", async () => {
   await waitFor("erin to take the message off disk", () => taken("erin"));
 
   assert.equal(journal("erin")[0].status, "pending");
-  assert.equal(await erin.tool("pollen_inbox"), "No new messages.");
+  assert.equal(
+    await erin.tool("pollen_inbox"),
+    "No new messages.\nHeld at the gate: frank (1 message). Ask the user before calling pollen_allow or pollen_deny.",
+  );
 
   assert.match(await erin.tool("pollen_allow", { agent: "frank" }), /has been delivered/);
   assert.equal(await erin.tool("pollen_inbox"), "[frank]: let me in");
@@ -256,7 +262,7 @@ test("--watch rings for messages held at the trust gate", async () => {
 
   const eyes = watcher("uma");           // armed after the fact — must not start deaf
   await waitFor("a watch line", () => eyes.lines.length === 1);
-  assert.equal(eyes.lines[0], "[pollen] 1 knock waiting at the gate — pollen_allow or pollen_deny");
+  assert.equal(eyes.lines[0], "[pollen] 1 knock waiting at the gate from vic — pollen_allow or pollen_deny");
 });
 
 test("a knock held at the gate can still be allowed after a restart", async () => {
@@ -413,4 +419,55 @@ test("an entry another writer appended is not numbered over", async () => {
   await max.tool("pollen_send", { to: "lou", message: "via this one" });
   assert.deepEqual(journal("lou").map((e) => e.seq), [1, 2]);
   assert.equal(await lou.tool("pollen_inbox"), "[max]: via the other server\n[max]: via this one");
+});
+
+test("--watch rings each arrival once when the journal repeats a seq", async () => {
+  // The shape of a journal two servers wrote to before #28: a duplicated seq
+  // and a series out of order. Read up to the end, so nothing is waiting.
+  const entry = (seq, message) => JSON.stringify({ seq, ts: `2026-09-08T10:00:0${seq}.000Z`, from: "pia", message, status: "delivered" });
+  mkdirSync(join(DIR, "oz"), { recursive: true });
+  writeFileSync(join(DIR, "oz", "journal.jsonl"), [entry(1, "a"), entry(2, "b"), entry(2, "b"), entry(3, "c"), entry(5, "e"), entry(4, "d")].join("\n") + "\n");
+  writeFileSync(join(DIR, "oz", "cursor"), "5");
+
+  const eyes = watcher("oz");
+  await eyes.ready();
+
+  appendFileSync(join(DIR, "oz", "journal.jsonl"), entry(6, "new") + "\n");
+  await waitFor("the new line", () => eyes.lines.length >= 1);
+  await sleep(1300);                     // past the safety-net tick, where the replay used to start
+  assert.deepEqual(eyes.lines, ["[pollen] message from pia — pollen_inbox to read: new"]);
+});
+
+test("a restarted server says who is waiting at the gate", async () => {
+  const quill = agent("quill");           // trusts nobody
+  const reed = agent("reed");
+  await Promise.all([quill.ready(), reed.ready()]);
+
+  await reed.tool("pollen_send", { to: "quill", message: "let me in" });
+  await quill.stop();
+
+  const revived = agent("quill");
+  await revived.ready();
+  assert.deepEqual(revived.notes, ["1 message held at the gate from reed. Ask the user before calling pollen_allow or pollen_deny."]);
+});
+
+test("a knock journaled by another server can be allowed", async () => {
+  const sol = agent("sol");               // trusts nobody
+  await sol.ready();
+
+  // The journal is the gate, so a knock taken in by a different process is
+  // as much sol's to settle as one sol took in itself.
+  writeFileSync(
+    join(DIR, "sol", "journal.jsonl"),
+    JSON.stringify({ seq: 1, ts: new Date().toISOString(), from: "tam", message: "let me in", status: "pending" }) + "\n",
+  );
+
+  assert.match(await sol.tool("pollen_allow", { agent: "tam" }), /has been delivered/);
+  assert.equal(await sol.tool("pollen_inbox"), "[tam]: let me in");
+});
+
+test("the instructions name a watch command that runs from anywhere", async () => {
+  const ula = agent("ula");
+  const { instructions } = await ula.ready();
+  assert.ok(instructions.includes(`node ${POLLEN} --watch ula`), instructions);
 });
