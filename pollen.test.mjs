@@ -62,6 +62,12 @@ function agent(id, env = {}) {
       call("tools/call", { name, arguments: args }).then((r) => r.content[0].text),
     alive: () => proc.exitCode === null && proc.signalCode === null,
     stop: () => { proc.kill(); return once(proc, "exit"); },
+    // What the host does when it goes away: its end of the pipe closes.
+    hangUp: () => proc.stdin.end(),
+    exited: () => Promise.race([
+      once(proc, "exit"),
+      sleep(5000, null, { ref: false }).then(() => assert.fail("the server outlived its host")),
+    ]),
   };
 }
 
@@ -359,4 +365,52 @@ test("pollen_allow refuses an id that would write more than one peer", async () 
 
   assert.match(await eli.tool("pollen_allow", { agent: "fay\nmallory" }), /^Cannot allow/);
   assert.equal(existsSync(join(DIR, "eli", "allow")), false);
+});
+
+test("the server exits when its host goes away", async () => {
+  const hal = agent("hal");
+  await hal.ready();
+
+  // An orphan keeps taking messages for an agent that is gone, with a seq
+  // counter that a later server with the same id will collide with.
+  hal.hangUp();
+  await hal.exited();
+});
+
+test("a reply in flight when the host hangs up is still written", async () => {
+  const ike = agent("ike", { POLLEN_ALLOW: "jin" });
+  const jin = agent("jin", { POLLEN_ALLOW: "ike" });
+  await Promise.all([ike.ready(), jin.ready()]);
+
+  // A host that pipes requests and closes its end, a script or a FIFO, is
+  // still owed every answer it asked for.
+  const said = jin.tool("pollen_send", { to: "ike", message: "last words" });
+  jin.hangUp();
+  assert.equal(await said, "Sent to ike.");
+  await jin.exited();
+});
+
+test("a server on an unreachable relay still exits with its host", async () => {
+  const kai = agent("kai", { POLLEN_RELAY: "http://127.0.0.1:1" });
+  await kai.ready();
+
+  // The reconnect timer must not keep a hostless server alive.
+  kai.hangUp();
+  await kai.exited();
+});
+
+test("an entry another writer appended is not numbered over", async () => {
+  const lou = agent("lou", { POLLEN_ALLOW: "max" });
+  const max = agent("max", { POLLEN_ALLOW: "lou" });
+  await Promise.all([lou.ready(), max.ready()]);
+
+  // A second server for lou, or one left behind, appends while lou runs.
+  writeFileSync(
+    join(DIR, "lou", "journal.jsonl"),
+    JSON.stringify({ seq: 1, ts: new Date().toISOString(), from: "max", message: "via the other server", status: "delivered" }) + "\n",
+  );
+
+  await max.tool("pollen_send", { to: "lou", message: "via this one" });
+  assert.deepEqual(journal("lou").map((e) => e.seq), [1, 2]);
+  assert.equal(await lou.tool("pollen_inbox"), "[max]: via the other server\n[max]: via this one");
 });
