@@ -104,8 +104,11 @@ The sender is told, rather than left guessing — `pollen_send` reports what the
 ```
 Sent to beta.
 Held at beta's trust gate — beta must allow "alpha" before this is delivered.
+Queued for beta — beta's pollen is not running. The message waits in the mailbox until beta starts.
 Queued for beta — no confirmation from beta's pollen; it stays in the mailbox until taken.
 ```
+
+`pollen_agents` says the same thing before you send: `beta (running), gamma (not running, last seen 2026-09-05 14:02Z)`.
 
 An agent waiting on a reply that can never come is worse than one told to go ask a human. Over a relay only the first is possible: the gate runs in the receiver's process on the far side, and its verdict has no route back, so cross-machine senders learn the message left but not whether it was let in.
 
@@ -141,7 +144,7 @@ A peer you let in with `pollen_allow` stays allowed. pollen writes its id to `/t
 
 ## How it works
 
-~640 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
+~740 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
 
 - `node pollen.mjs` — MCP server that Claude Code (or any MCP host) spawns as a subprocess
 - `node pollen.mjs --relay` — HTTP relay with SSE streams for real-time delivery
@@ -156,6 +159,8 @@ Every arrival is appended to `/tmp/pollen/<id>/journal.jsonl` before the mailbox
 - `pollen_inbox` lets any agent check for received messages. Claude Code agents also get automatic push via [channels](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/notifications#channels) (research preview), but `pollen_inbox` works everywhere.
 - The journal is append-only and never rotated. It lives under `/tmp`, which the OS clears on reboot. The allow file lives beside it and is cleared with it, so after a reboot only `POLLEN_ALLOW` is trusted.
 - A message held at the trust gate survives a restart — the gate is read from the journal, so a knock you were rung about is still there to allow or deny.
+- One server per id. Two servers on one id would take each other's messages, so a second one stands aside: every tool tells the agent why, and it takes over once the first is gone. The running server keeps its pid in `/tmp/pollen/<id>/server.json` and touches the file every few seconds; the file's age is the "last seen" in `pollen_agents`.
+- A server exits when its host closes its stdin, so a session that ends does not leave a server behind.
 - Tests: `node --test`. They drive real MCP servers over stdio against a real mailbox — nothing is mocked.
 - Requires Node.js 18+. Nothing else.
 

@@ -471,3 +471,52 @@ test("the instructions name a watch command that runs from anywhere", async () =
   const { instructions } = await ula.ready();
   assert.ok(instructions.includes(`node ${POLLEN} --watch ula`), instructions);
 });
+
+test("pollen_agents says which peers are running", async () => {
+  const vera = agent("vera");
+  const wyn = agent("wyn");
+  await Promise.all([vera.ready(), wyn.ready()]);
+
+  assert.match(await vera.tool("pollen_agents"), /(^|, )wyn \(running\)(,|$)/);
+
+  await wyn.stop();
+  assert.match(
+    await vera.tool("pollen_agents"),
+    /(^|, )wyn \(not running, last seen \d{4}-\d\d-\d\d \d\d:\d\dZ\)(,|$)/,
+  );
+});
+
+test("the sender is told up front that the receiver is not running", async () => {
+  const yan = agent("yan");
+  const zed = agent("zed");
+  await Promise.all([yan.ready(), zed.ready()]);
+  await zed.stop();
+
+  assert.equal(
+    await yan.tool("pollen_send", { to: "zed", message: "are you there" }),
+    "Queued for zed — zed's pollen is not running. The message waits in the mailbox until zed starts.",
+  );
+});
+
+test("a second server on the same id stands aside until the first is gone", async () => {
+  const first = agent("xia", { POLLEN_ALLOW: "bea" });
+  await first.ready();
+  const second = agent("xia", { POLLEN_ALLOW: "bea" });
+  await second.ready();
+  const bea = agent("bea");
+  await bea.ready();
+
+  // Two servers on one id take each other's messages and share one cursor,
+  // so each agent sees part of its mail and believes it has all of it.
+  assert.match(await second.tool("pollen_inbox"), /^pollen is not running for "xia": another pollen server \(pid \d+\) already uses this id\./);
+  assert.match(second.notes.join("\n"), /another pollen server \(pid \d+\) already uses this id/);
+
+  await bea.tool("pollen_send", { to: "xia", message: "for the first" });
+  await waitFor("the first server to take it", () => first.notes.includes("for the first"));
+  assert.ok(!second.notes.includes("for the first"), "the server standing aside took a message");
+
+  // Once the holder is gone, the next call takes the id over, mailbox and all.
+  await first.stop();
+  await bea.tool("pollen_send", { to: "xia", message: "for whoever is left" });
+  assert.equal(await second.tool("pollen_inbox"), "[bea]: for the first\n[bea]: for whoever is left");
+});

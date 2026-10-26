@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "pollen": {
-      "command": "node",
-      "args": ["./pollen.mjs"],
-      "env": { "POLLEN_ID": "cape-town" }
-    }
-  }
-}

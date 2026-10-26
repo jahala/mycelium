@@ -24,7 +24,9 @@ can read any agent's journal, including messages that were held at the gate. The
 decides what reaches an *agent's context*, not what is readable on disk. If a message
 would be damaging to disclose to another local process, pollen is the wrong carrier.
 The same holds for trust: peers let in with `pollen_allow` are listed in
-`POLLEN_DIR/<id>/allow`, and any process running as you can add a name there.
+`POLLEN_DIR/<id>/allow`, and any process running as you can add a name there. It
+can also write `server.json`, which says which server holds an id, and so keep a
+new server for that id standing aside.
 
 The journal is append-only and never rotated, so message text persists for the life of
 the directory rather than being consumed on read. Under `/tmp` the OS clears it on

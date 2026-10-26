@@ -22,7 +22,7 @@
 //
 import {
   watch, mkdirSync, readdirSync, readFileSync, appendFileSync,
-  renameSync, unlinkSync, writeFileSync, existsSync,
+  renameSync, unlinkSync, writeFileSync, existsSync, statSync, utimesSync,
 } from "fs";
 import { createInterface } from "readline";
 import { join } from "path";
@@ -37,16 +37,6 @@ const DIR = process.env.POLLEN_DIR ?? "/tmp/pollen";
 const SELF = fileURLToPath(import.meta.url);
 const RUN = `node ${/\s/.test(SELF) ? `'${SELF}'` : SELF}`;
 const ASK = "Ask the user before calling pollen_allow or pollen_deny.";
-
-if (process.argv.includes("--version")) {
-  process.stdout.write(`pollen ${VERSION}\n`);
-} else if (process.argv.includes("--relay")) {
-  startRelay();
-} else if (process.argv.includes("--watch")) {
-  startWatch(process.argv[process.argv.indexOf("--watch") + 1]);
-} else {
-  startAgent();
-}
 
 // =============================================================================
 // RELAY MODE
@@ -137,6 +127,7 @@ function startRelay() {
 function journalPath(id) { return join(DIR, id, "journal.jsonl"); }
 function cursorPath(id) { return join(DIR, id, "cursor"); }
 function allowPath(id) { return join(DIR, id, "allow"); }
+function serverPath(id) { return join(DIR, id, "server.json"); }
 
 function readJournal(id) {
   let raw = "";
@@ -173,6 +164,35 @@ function heldByPeer(id) {
   const counts = new Map();
   for (const e of heldPending(id)) counts.set(e.from, (counts.get(e.from) ?? 0) + 1);
   return counts;
+}
+
+// =============================================================================
+// LIVENESS — which server, if any, is running as an id
+// =============================================================================
+//
+// The server holding an id writes its pid to server.json and touches the file
+// every HEARTBEAT. A pid alone is not proof: once its process is gone the
+// number can be reused by anything, so the file must also be fresh. When the
+// server stops, the file stays behind and its mtime is when it was last seen.
+
+const HEARTBEAT = 5000;
+const STALE = 4 * HEARTBEAT;
+
+function runningServer(id) {
+  let pid;
+  try {
+    if (Date.now() - statSync(serverPath(id)).mtimeMs > STALE) return null;
+    pid = JSON.parse(readFileSync(serverPath(id), "utf-8")).pid;
+    process.kill(pid, 0); // signal 0 delivers nothing; it only asks if pid exists
+    return pid;
+  } catch (e) {
+    return e.code === "EPERM" ? pid : null; // exists, but belongs to another user
+  }
+}
+
+function lastSeen(id) {
+  try { return statSync(serverPath(id)).mtime.toISOString().slice(0, 16).replace("T", " ") + "Z"; }
+  catch { return null; }
 }
 
 function plural(n, word) { return `${n} ${word}${n === 1 ? "" : "s"}`; }
@@ -233,6 +253,7 @@ function startAgent() {
     // any reply still in flight is written. A server left running would keep
     // taking this agent's messages, and its seq counter would collide with the
     // next server started for the same id.
+    clearInterval(heartbeat);
     tx.close();
   });
 
@@ -283,6 +304,8 @@ function startAgent() {
       const { name, arguments: args } = msg.params;
       const fn = toolHandlers[name];
       if (!fn) return reply(msg.id, text(`Unknown tool: ${name}`));
+      if (standingAside) holdId(); // the other server may have gone since
+      if (standingAside) return reply(msg.id, text(clash(standingAside)));
       return reply(msg.id, await fn(args));
     }
   }
@@ -343,6 +366,9 @@ function startAgent() {
   const toolHandlers = {
     async pollen_send({ to, message }) {
       const status = await tx.send(to, message);
+      if (status === "queued" && !runningServer(to)) {
+        return text(`Queued for ${to} — ${to}'s pollen is not running. The message waits in the mailbox until ${to} starts.`);
+      }
       if (status === "unknown-agent") return text(`No mailbox for "${to}". The message was not sent. Check the id with pollen_agents.`);
       if (status === "unreachable") {
         return text(`pollen could not reach the relay. The message was not delivered to ${to}. Retry, or send it to a local peer.`);
@@ -471,9 +497,13 @@ function startAgent() {
         return settled(to, since, message);
       },
       async agents() {
-        return readdirSync(DIR).filter(
-          (d) => d !== ID && existsSync(join(DIR, d, "inbox"))
-        );
+        return readdirSync(DIR)
+          .filter((d) => d !== ID && existsSync(join(DIR, d, "inbox")))
+          .map((d) => {
+            if (runningServer(d)) return `${d} (running)`;
+            const seen = lastSeen(d);
+            return seen ? `${d} (not running, last seen ${seen})` : `${d} (not running)`;
+          });
       },
       listen(cb) {
         watcher = watch(inbox, (_, f) => {
@@ -514,6 +544,7 @@ function startAgent() {
         return res.json();
       },
       listen(cb) {
+        closed = false;
         function connect() {
           let reconnecting = false;
           const retry = (e) => {
@@ -549,36 +580,87 @@ function startAgent() {
 
   // --- go -------------------------------------------------------------------
 
-  // Anything that arrived last session but was never read is still in the
+  // Anything that arrived while this agent had no server is still in the
   // journal. Say so, or it sits there until the agent happens to check.
-  const carried = unread(ID).length;
-  if (carried) {
-    notify(
-      `${plural(carried, "unread message")} from a previous session. Use pollen_inbox to read.`,
-      { status: "unread" }
-    );
-  }
-  // A knock that came in while no server was running is just as easy to miss.
-  const knocking = heldByPeer(ID);
-  if (knocking.size) {
-    const n = [...knocking.values()].reduce((a, b) => a + b, 0);
-    notify(
-      `${plural(n, "message")} held at the gate from ${[...knocking.keys()].join(", ")}. ${ASK}`,
-      { status: "pending" }
-    );
+  function announceWaiting() {
+    const carried = unread(ID).length;
+    if (carried) {
+      notify(
+        `${plural(carried, "unread message")} from a previous session. Use pollen_inbox to read.`,
+        { status: "unread" }
+      );
+    }
+    // A knock that came in while no server was running is just as easy to miss.
+    const knocking = heldByPeer(ID);
+    if (knocking.size) {
+      const n = [...knocking.values()].reduce((a, b) => a + b, 0);
+      notify(
+        `${plural(n, "message")} held at the gate from ${[...knocking.keys()].join(", ")}. ${ASK}`,
+        { status: "pending" }
+      );
+    }
   }
 
-  tx.drain(onMessage);
-  tx.listen(onMessage);
+  // --- one server per id ------------------------------------------------------
+  //
+  // Two servers on one id take each other's messages and share one cursor, so
+  // each agent sees part of its mail and believes it has all of it. The second
+  // one stands aside: it does not touch the mailbox, every tool says why, and it
+  // takes the id over once the first is gone. Two servers starting in the same
+  // instant can both claim it; the loser notices at its next heartbeat.
+
+  let standingAside = null; // pid of the server holding our id
+  let listening = false;
+
+  function holdId() {
+    const holder = runningServer(ID);
+    if (holder === process.pid) {
+      try {
+        const now = new Date();
+        return utimesSync(serverPath(ID), now, now);
+      } catch {} // the file went with a cleared /tmp: claim it again below
+    }
+    if (holder && holder !== process.pid) {
+      if (standingAside !== holder) notify(clash(holder), { status: "clash" });
+      standingAside = holder;
+      if (listening) { listening = false; tx.close(); }
+      return;
+    }
+    // Write beside, then rename in, so a reader never sees half a file.
+    mkdirSync(join(DIR, ID), { recursive: true });
+    const part = join(DIR, ID, `.server.json.${process.pid}`);
+    writeFileSync(part, JSON.stringify({ pid: process.pid }));
+    renameSync(part, serverPath(ID));
+    standingAside = null;
+    if (!listening) {
+      listening = true;
+      announceWaiting();
+      tx.drain(onMessage);
+      tx.listen(onMessage);
+    }
+  }
+
+  function clash(pid) {
+    return `pollen is not running for "${ID}": another pollen server (pid ${pid}) already uses this id. ` +
+      `Two agents on one id take each other's messages, so this one stays off. ` +
+      `Ask the user to give this agent its own POLLEN_ID, or to stop the other agent.`;
+  }
+
+  holdId();
+  const heartbeat = setInterval(() => {
+    // A throw here would end the process: nothing catches a timer's errors.
+    try { holdId(); } catch (e) { process.stderr.write(`pollen: could not check who holds "${ID}": ${e.message}\n`); }
+  }, HEARTBEAT);
+  heartbeat.unref(); // never the thing that keeps a hostless server alive
 }
 
 // =============================================================================
 // WATCH MODE
 // =============================================================================
 //
-// One line per message on stdout, forever. Point a harness background task at
-// it (Claude Code's Monitor, `&`, systemd — anything that reads lines) and the
-// agent gets woken instead of polling.
+// One line per message on stdout, forever. Point anything that reports each
+// line as it comes at it (Claude Code's Monitor, `&`, systemd) and the agent
+// gets woken instead of polling.
 
 function startWatch(id) {
   if (!id) {
@@ -641,4 +723,20 @@ function startWatch(id) {
   watch(journal, pump);
   setInterval(pump, 1000); // safety net — fs.watch misses appends on some filesystems
   process.stderr.write(`pollen watching ${id}\n`);
+}
+
+// =============================================================================
+// GO
+// =============================================================================
+//
+// Last in the file, so every constant above exists before any mode starts.
+
+if (process.argv.includes("--version")) {
+  process.stdout.write(`pollen ${VERSION}\n`);
+} else if (process.argv.includes("--relay")) {
+  startRelay();
+} else if (process.argv.includes("--watch")) {
+  startWatch(process.argv[process.argv.indexOf("--watch") + 1]);
+} else {
+  startAgent();
 }
