@@ -232,7 +232,13 @@ function startAgent() {
     const entry = { seq, ts: new Date().toISOString(), from, message, status };
     if (resolves !== undefined) entry.resolves = resolves;
     appendFileSync(journalPath(ID), JSON.stringify(entry) + "\n");
-    return entry.seq;
+    return entry;
+  }
+
+  // A delivered message, pushed to the agent as a <channel> tag. The seq and
+  // time ride along so messages that land close together keep their order.
+  function deliver(entry) {
+    notify(entry.message, { from: entry.from, ts: entry.ts, seq: String(entry.seq) });
   }
 
   // --- mcp protocol ---------------------------------------------------------
@@ -397,8 +403,7 @@ function startAgent() {
       const held = heldPending(ID).filter((e) => e.from === agent);
       if (held.length) {
         for (const m of held) {
-          record(m.from, m.message, "delivered", m.seq);
-          notify(m.message, { from: m.from });
+          deliver(record(m.from, m.message, "delivered", m.seq));
         }
         const what = held.length === 1 ? "Their message has" : `Their ${held.length} messages have`;
         return text(`Allowed ${agent}. ${what} been delivered.`);
@@ -417,7 +422,9 @@ function startAgent() {
     async pollen_inbox() {
       const msgs = unread(ID);
       if (msgs.length) writeFileSync(cursorPath(ID), String(msgs.at(-1).seq));
-      const read = msgs.length ? msgs.map((m) => `[${m.from}]: ${m.message}`).join("\n") : "No new messages.";
+      const read = msgs.length
+        ? msgs.map((m) => `[${m.from} ${m.ts.slice(0, 19)}Z #${m.seq}]: ${m.message}`).join("\n")
+        : "No new messages.";
       // "No new messages" alone, with knocks waiting, reads as "nothing arrived"
       // and the agent tells its person so.
       const held = [...heldByPeer(ID)].map(([peer, n]) => `${peer} (${plural(n, "message")})`);
@@ -430,8 +437,7 @@ function startAgent() {
 
   function onMessage(from, message) {
     if (trusts(from)) {
-      record(from, message, "delivered");
-      notify(message, { from });
+      deliver(record(from, message, "delivered"));
     } else {
       // Every knock is kept. Holding only the latest would mean a stranger's
       // follow-up destroys the message it is asking about.
