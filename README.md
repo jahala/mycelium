@@ -149,6 +149,8 @@ Pre-approve agents you trust:
 }
 ```
 
+For a night when every peer on the machine is your own, `POLLEN_ALLOW=*` lets anyone in without a knock. An agent can open its own gate the same way with `pollen_allow *`, which also delivers everything waiting at the gate. It should only do that when its person says so. The gate stays closed unless one of the two is set.
+
 A peer you let in with `pollen_allow` stays allowed. pollen writes its id to `/tmp/pollen/<id>/allow`, one id per line, and reads that file on every arrival. A restarted server still trusts the peer, and an id you add to the file by hand works at once. To take trust back, remove the line.
 
 ## Environment variables
@@ -157,7 +159,7 @@ A peer you let in with `pollen_allow` stays allowed. pollen writes its id to `/t
 |---|---|---|
 | `POLLEN_ID` | yes | Agent name |
 | `POLLEN_RELAY` | no | Relay URL for cross-machine |
-| `POLLEN_ALLOW` | no | Comma-separated trusted agent IDs |
+| `POLLEN_ALLOW` | no | Comma-separated trusted agent IDs, or `*` for anyone |
 | `POLLEN_DIR` | no | Mailbox root (default `/tmp/pollen`) |
 | `POLLEN_PORT` | no | Relay port (default `4747`) |
 

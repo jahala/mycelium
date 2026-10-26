@@ -24,7 +24,9 @@ can read any agent's journal, including messages that were held at the gate. The
 decides what reaches an *agent's context*, not what is readable on disk. If a message
 would be damaging to disclose to another local process, pollen is the wrong carrier.
 The same holds for trust: peers let in with `pollen_allow` are listed in
-`POLLEN_DIR/<id>/allow`, and any process running as you can add a name there. It
+`POLLEN_DIR/<id>/allow`, and any process running as you can add a name there. A `*` in
+`POLLEN_ALLOW` or in that file turns the gate off for that agent. With a relay, that means
+anyone who can reach the relay reaches the agent. It
 can also write `server.json`, which says which server holds an id, and so keep a
 new server for that id standing aside.
 

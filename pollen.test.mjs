@@ -626,3 +626,31 @@ test("pollen_rename refuses an id that is taken or unsafe", async () => {
   assert.match(await rex.tool("pollen_rename", { id: "../escape" }), /^Cannot take "\.\.\/escape"/);
   assert.match(await rex.tool("pollen_rename", { id: "sid" }), /^Cannot take "sid": another pollen server \(pid \d+\) is running as it\./);
 });
+
+test("POLLEN_ALLOW=* lets anyone in", async () => {
+  // A fleet night: every peer on the machine is the owner's own.
+  const fen = agent("fen", { POLLEN_ALLOW: "*" });
+  const gil = agent("gil");
+  await Promise.all([fen.ready(), gil.ready()]);
+
+  assert.equal(await gil.tool("pollen_send", { to: "fen", message: "no knock needed" }), "Sent to fen.");
+});
+
+test("pollen_allow * opens the gate, delivers everyone waiting, and stays open", async () => {
+  const ivy = agent("ivy");               // trusts nobody
+  const jax = agent("jax");
+  const kip = agent("kip");
+  await Promise.all([ivy.ready(), jax.ready(), kip.ready()]);
+
+  await jax.tool("pollen_send", { to: "ivy", message: "from jax" });
+  await kip.tool("pollen_send", { to: "ivy", message: "from kip" });
+
+  assert.match(await ivy.tool("pollen_allow", { agent: "*" }), /^Opened the gate to everyone, now and after a restart\. 2 held messages delivered\./);
+  assert.equal(plain(await ivy.tool("pollen_inbox")), "[jax]: from jax\n[kip]: from kip");
+
+  await ivy.stop();
+  const revived = agent("ivy");
+  const lux = agent("lux");
+  await Promise.all([revived.ready(), lux.ready()]);
+  assert.equal(await lux.tool("pollen_send", { to: "ivy", message: "a stranger" }), "Sent to ivy.");
+});
