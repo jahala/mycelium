@@ -1,24 +1,24 @@
 #!/usr/bin/env node
-// pollen — peer messaging between agents. zero deps.
+// mycelium — peer messaging between agents. zero deps.
 //
-//   node pollen.mjs             MCP server (agent-side)
-//   node pollen.mjs --relay     HTTP relay (cross-machine hop)
-//   node pollen.mjs --version   print the version
-//   node pollen.mjs --watch ID  tail an agent's journal — one line per new message
+//   node mycelium.mjs             MCP server (agent-side)
+//   node mycelium.mjs --relay     HTTP relay (cross-machine hop)
+//   node mycelium.mjs --version   print the version
+//   node mycelium.mjs --watch ID  tail an agent's journal — one line per new message
 //
 // Agent mode env:
-//   POLLEN_ID       required — agent name
-//   POLLEN_RELAY    optional — relay URL for cross-machine
-//   POLLEN_ALLOW    optional — comma-separated trusted agent IDs, or * for anyone
-//   POLLEN_DIR      optional — mailbox root (default /tmp/pollen)
+//   MYCELIUM_ID       required — agent name
+//   MYCELIUM_RELAY    optional — relay URL for cross-machine
+//   MYCELIUM_ALLOW    optional — comma-separated trusted agent IDs, or * for anyone
+//   MYCELIUM_DIR      optional — mailbox root (default /tmp/mycelium)
 //
-// Peers let in with pollen_allow are kept in POLLEN_DIR/<id>/allow, one per line.
+// Peers let in with mycelium_allow are kept in MYCELIUM_DIR/<id>/allow, one per line.
 //
 // Relay mode env:
-//   POLLEN_PORT     optional — listen port (default 4747)
+//   MYCELIUM_PORT     optional — listen port (default 4747)
 //
 // Watch mode env:
-//   POLLEN_DIR      optional — mailbox root (default /tmp/pollen)
+//   MYCELIUM_DIR      optional — mailbox root (default /tmp/mycelium)
 //
 import {
   watch, mkdirSync, readdirSync, readFileSync, appendFileSync,
@@ -31,19 +31,19 @@ import { setTimeout as sleep } from "timers/promises";
 import http from "http";
 
 const VERSION = "0.1.0";
-const DIR = process.env.POLLEN_DIR ?? "/tmp/pollen";
+const DIR = process.env.MYCELIUM_DIR ?? "/tmp/mycelium";
 // How to run this very file, for the commands the agent is told to start. A
-// bare "pollen.mjs" only works from the directory it happens to sit in.
+// bare "mycelium.mjs" only works from the directory it happens to sit in.
 const SELF = fileURLToPath(import.meta.url);
 const RUN = `node ${/\s/.test(SELF) ? `'${SELF}'` : SELF}`;
-const ASK = "Ask the user before calling pollen_allow or pollen_deny.";
+const ASK = "Ask the user before calling mycelium_allow or mycelium_deny.";
 
 // =============================================================================
 // RELAY MODE
 // =============================================================================
 
 function startRelay() {
-  const PORT = parseInt(process.env.POLLEN_PORT ?? "4747");
+  const PORT = parseInt(process.env.MYCELIUM_PORT ?? "4747");
   const listeners = new Map(); // id → (from, message) => void
   const queues = new Map();    // id → [{ from, message }]
 
@@ -104,9 +104,9 @@ function startRelay() {
     res.end("not found");
   });
 
-  // Report the port actually bound, so POLLEN_PORT=0 is usable.
+  // Report the port actually bound, so MYCELIUM_PORT=0 is usable.
   server.listen(PORT, () => {
-    process.stderr.write(`pollen relay on :${server.address().port}\n`);
+    process.stderr.write(`mycelium relay on :${server.address().port}\n`);
   });
 }
 
@@ -219,7 +219,7 @@ function runningServer(id) {
   }
 }
 
-// The id an agent took with pollen_rename, left behind so its old name can
+// The id an agent took with mycelium_rename, left behind so its old name can
 // point senders at the new one.
 function movedTo(id) { return serverFile(id)?.movedTo ?? null; }
 
@@ -255,18 +255,18 @@ function plural(n, word) { return `${n} ${word}${n === 1 ? "" : "s"}`; }
 // =============================================================================
 
 function startAgent() {
-  const RELAY = process.env.POLLEN_RELAY;
-  let ID = process.env.POLLEN_ID; // changes only through pollen_rename
-  if (!ID) { process.stderr.write("POLLEN_ID is required. pollen cannot start without an id; set it in the env of your .mcp.json entry.\n"); process.exit(1); }
+  const RELAY = process.env.MYCELIUM_RELAY;
+  let ID = process.env.MYCELIUM_ID; // changes only through mycelium_rename
+  if (!ID) { process.stderr.write("MYCELIUM_ID is required. mycelium cannot start without an id; set it in the env of your .mcp.json entry.\n"); process.exit(1); }
 
-  const preAllowed = (process.env.POLLEN_ALLOW ?? "").split(",").filter(Boolean);
+  const preAllowed = (process.env.MYCELIUM_ALLOW ?? "").split(",").filter(Boolean);
 
-  // pollen_allow writes to a file because the env var is fixed for the life of
+  // mycelium_allow writes to a file because the env var is fixed for the life of
   // the process. The file is read on every arrival rather than cached, so it is
   // the one record of who was let in: it survives a restart, and an edit by a
   // person or a second server with the same id takes effect at once.
   // "*" opens the gate to anyone. It is never the default: a person sets it in
-  // the env, or an agent writes it with pollen_allow after asking its person.
+  // the env, or an agent writes it with mycelium_allow after asking its person.
   function trusts(from) {
     const list = [...preAllowed, ...allowedBy(ID)];
     return list.includes("*") || list.includes(from);
@@ -332,16 +332,16 @@ function startAgent() {
           tools: {},
           experimental: { "claude/channel": {} },
         },
-        serverInfo: { name: `pollen-${ID}`, version: VERSION },
+        serverInfo: { name: `mycelium-${ID}`, version: VERSION },
         instructions: [
-          `You are agent "${ID}", a peer on pollen.`,
+          `You are agent "${ID}", a peer on mycelium.`,
           `Incoming messages appear as <channel> tags with a "from" attribute.`,
-          `Use pollen_send to reach another peer. Use pollen_agents to see who is reachable and whether they have read what you sent, so there is no need to ask a peer to acknowledge.`,
-          `Use pollen_inbox to read what has arrived. A stranger is held at the gate. ${ASK}`,
-          `If you are expected under a different id, take it with pollen_rename.`,
-          `Do not poll for messages. Run "${RUN} --watch ${ID}" with your harness's line-event tool (in Claude Code that is Monitor; a background Bash task only reports when it exits). It prints one line the moment anything lands; then call pollen_inbox. If you pipe it, every later stage must flush per line.`,
+          `Use mycelium_send to reach another peer. Use mycelium_agents to see who is reachable and whether they have read what you sent, so there is no need to ask a peer to acknowledge.`,
+          `Use mycelium_inbox to read what has arrived. A stranger is held at the gate. ${ASK}`,
+          `If you are expected under a different id, take it with mycelium_rename.`,
+          `Do not poll for messages. Run "${RUN} --watch ${ID}" with your harness's line-event tool (in Claude Code that is Monitor; a background Bash task only reports when it exits). It prints one line the moment anything lands; then call mycelium_inbox. If you pipe it, every later stage must flush per line.`,
           `To reach peers on other machines: run "${RUN} --relay" then expose it with "cloudflared tunnel --url http://localhost:4747" (free, no account needed).`,
-          `Give the resulting URL to the user so they can pass it to the remote peer as POLLEN_RELAY.`,
+          `Give the resulting URL to the user so they can pass it to the remote peer as MYCELIUM_RELAY.`,
         ].join(" "),
       });
     }
@@ -355,8 +355,8 @@ function startAgent() {
       const fn = toolHandlers[name];
       if (!fn) return reply(msg.id, text(`Unknown tool: ${name}`));
       if (standingAside) holdId(); // the other server may have gone since
-      // pollen_rename stays open: taking an id of its own is the way out.
-      if (standingAside && name !== "pollen_rename") return reply(msg.id, text(clash(standingAside)));
+      // mycelium_rename stays open: taking an id of its own is the way out.
+      if (standingAside && name !== "mycelium_rename") return reply(msg.id, text(clash(standingAside)));
       return reply(msg.id, await fn(args));
     }
   }
@@ -365,7 +365,7 @@ function startAgent() {
 
   const TOOLS = [
     {
-      name: "pollen_send",
+      name: "mycelium_send",
       description: "Send a message to another peer",
       inputSchema: {
         type: "object",
@@ -377,12 +377,12 @@ function startAgent() {
       },
     },
     {
-      name: "pollen_agents",
+      name: "mycelium_agents",
       description: "List the peers you can reach, whether each is running, and whether they have read what you sent",
       inputSchema: { type: "object", properties: {} },
     },
     {
-      name: "pollen_allow",
+      name: "mycelium_allow",
       description: "Allow a peer to reach you, now and after a restart, and deliver anything they have waiting at the gate. \"*\" allows everyone; use it only when the user says so",
       inputSchema: {
         type: "object",
@@ -393,7 +393,7 @@ function startAgent() {
       },
     },
     {
-      name: "pollen_deny",
+      name: "mycelium_deny",
       description: "Deny a peer held at the gate and drop their message",
       inputSchema: {
         type: "object",
@@ -404,12 +404,12 @@ function startAgent() {
       },
     },
     {
-      name: "pollen_inbox",
+      name: "mycelium_inbox",
       description: "Read the messages that have arrived",
       inputSchema: { type: "object", properties: {} },
     },
     {
-      name: "pollen_rename",
+      name: "mycelium_rename",
       description: "Take a different peer id for the rest of this session, such as the one your director expects. Unread messages, knocks and allowed peers come with you.",
       inputSchema: {
         type: "object",
@@ -426,36 +426,36 @@ function startAgent() {
   }
 
   const toolHandlers = {
-    async pollen_send({ to, message }) {
+    async mycelium_send({ to, message }) {
       const moved = !RELAY && movedTo(to);
       if (moved && !runningServer(to)) {
         return text(`${to} is now ${moved}. The message was not sent; send it to ${moved}.`);
       }
       const status = await tx.send(to, message);
       if (status === "queued" && !runningServer(to)) {
-        return text(`Queued for ${to} — ${to}'s pollen is not running. The message waits in the mailbox until ${to} starts.`);
+        return text(`Queued for ${to} — ${to}'s mycelium is not running. The message waits in the mailbox until ${to} starts.`);
       }
-      if (status === "unknown-agent") return text(`No mailbox for "${to}". The message was not sent. Check the id with pollen_agents.`);
+      if (status === "unknown-agent") return text(`No mailbox for "${to}". The message was not sent. Check the id with mycelium_agents.`);
       if (status === "unreachable") {
-        return text(`pollen could not reach the relay. The message was not delivered to ${to}. Retry, or send it to a local peer.`);
+        return text(`mycelium could not reach the relay. The message was not delivered to ${to}. Retry, or send it to a local peer.`);
       }
       if (status === "pending") {
         return text(`Held at ${to}'s trust gate — ${to} must allow "${ID}" before this is delivered.`);
       }
       if (status === "queued") {
-        return text(`Queued for ${to} — no confirmation from ${to}'s pollen; it stays in the mailbox until taken.`);
+        return text(`Queued for ${to} — no confirmation from ${to}'s mycelium; it stays in the mailbox until taken.`);
       }
       return text(`Sent to ${to}.`);
     },
-    async pollen_agents() {
+    async mycelium_agents() {
       const list = await tx.agents();
       return text(list.join("\n") || "No peers reachable.");
     },
-    async pollen_allow({ agent }) {
+    async mycelium_allow({ agent }) {
       // The allow file holds one id per line, so an id with a line break in it
       // would let in a second peer nobody named.
       if (!agent || /[\s,]/.test(agent)) {
-        return text(`Cannot allow ${JSON.stringify(agent)}: a peer id has no spaces, commas or line breaks. Nobody was allowed. Check the id with pollen_agents.`);
+        return text(`Cannot allow ${JSON.stringify(agent)}: a peer id has no spaces, commas or line breaks. Nobody was allowed. Check the id with mycelium_agents.`);
       }
       const everyone = agent === "*";
       const already = everyone ? [...preAllowed, ...allowedBy(ID)].includes("*") : trusts(agent);
@@ -477,7 +477,7 @@ function startAgent() {
       }
       return text(`Allowed ${agent}.`);
     },
-    async pollen_deny({ agent }) {
+    async mycelium_deny({ agent }) {
       const held = heldPending(ID).filter((e) => e.from === agent);
       // Settle each pending entry so the gate stops counting them, without
       // repeating the text of something the human just rejected.
@@ -486,7 +486,7 @@ function startAgent() {
       const n = held.length === 1 ? "message" : `${held.length} messages`;
       return text(`Denied and dropped ${n} from ${agent}.`);
     },
-    async pollen_inbox() {
+    async mycelium_inbox() {
       const msgs = unread(ID);
       if (msgs.length) writeFileSync(cursorPath(ID), String(msgs.at(-1).seq));
       const read = msgs.length
@@ -500,8 +500,8 @@ function startAgent() {
     },
     // A launcher names an agent before anyone knows what its director will
     // call it, and the env cannot change once the server runs. Taking the id
-    // here means no restart and no second pollen beside the session's own.
-    async pollen_rename({ id }) {
+    // here means no restart and no second mycelium beside the session's own.
+    async mycelium_rename({ id }) {
       // The id becomes a directory and part of a filename.
       if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) {
         return text(`Cannot take ${JSON.stringify(id)}: an id is letters, digits, dots, dashes and underscores, starting with a letter or digit. Nothing changed.`);
@@ -509,7 +509,7 @@ function startAgent() {
       if (id === ID) return text(`You are already "${id}".`);
       const holder = runningServer(id);
       if (holder) {
-        return text(`Cannot take "${id}": another pollen server (pid ${holder}) is running as it. Nothing changed. Pick another id, or ask the user which agent should have it.`);
+        return text(`Cannot take "${id}": another mycelium server (pid ${holder}) is running as it. Nothing changed. Pick another id, or ask the user which agent should have it.`);
       }
 
       const old = ID;
@@ -543,7 +543,7 @@ function startAgent() {
       if (standingAside) return text(clash(standingAside));
       const came = [messages && plural(messages, "unread message"), knocks && plural(knocks, "knock")].filter(Boolean);
       return text([
-        `You are now "${ID}" on pollen, no longer "${old}".`,
+        `You are now "${ID}" on mycelium, no longer "${old}".`,
         came.length ? `${came.join(" and ")} came with you.` : "",
         ours ? `Anyone who writes to ${old} is told your new id.` : "",
         `Restart your watcher as "${RUN} --watch ${ID}".`,
@@ -561,7 +561,7 @@ function startAgent() {
       // follow-up destroys the message it is asking about.
       record(from, message, "pending");
       notify(
-        `"${from}" is knocking. Use pollen_allow or pollen_deny.`,
+        `"${from}" is knocking. Use mycelium_allow or mycelium_deny.`,
         { from, status: "pending" }
       );
     }
@@ -586,7 +586,7 @@ function startAgent() {
         unlinkSync(filepath);
       } catch (e) {
         if (e.code === "ENOENT") return; // already taken
-        process.stderr.write(`pollen: kept ${filename}, could not deliver it: ${e.message}\n`);
+        process.stderr.write(`mycelium: kept ${filename}, could not deliver it: ${e.message}\n`);
       }
     }
 
@@ -678,7 +678,7 @@ function startAgent() {
           const retry = (e) => {
             if (reconnecting || closed) return; // end and error can both fire
             reconnecting = true;
-            if (e) process.stderr.write(`pollen relay error: ${e.message}\n`);
+            if (e) process.stderr.write(`mycelium relay error: ${e.message}\n`);
             reconnect = setTimeout(connect, 1000);
           };
           stream = http.get(`${relay}/listen/${ID}`, (res) => {
@@ -705,7 +705,7 @@ function startAgent() {
   }
 
   const transport = () => (RELAY ? relayTransport(RELAY) : localTransport());
-  let tx = transport(); // replaced when pollen_rename moves the agent to a new mailbox
+  let tx = transport(); // replaced when mycelium_rename moves the agent to a new mailbox
 
   // --- go -------------------------------------------------------------------
 
@@ -715,7 +715,7 @@ function startAgent() {
     const carried = unread(ID).length;
     if (carried) {
       notify(
-        `${plural(carried, "unread message")} from a previous session. Use pollen_inbox to read.`,
+        `${plural(carried, "unread message")} from a previous session. Use mycelium_inbox to read.`,
         { status: "unread" }
       );
     }
@@ -766,15 +766,15 @@ function startAgent() {
   }
 
   function clash(pid) {
-    return `pollen is not running for "${ID}": another pollen server (pid ${pid}) already uses this id. ` +
+    return `mycelium is not running for "${ID}": another mycelium server (pid ${pid}) already uses this id. ` +
       `Two agents on one id take each other's messages, so this one stays off. ` +
-      `Take an id of your own with pollen_rename, or ask the user to stop the other agent.`;
+      `Take an id of your own with mycelium_rename, or ask the user to stop the other agent.`;
   }
 
   holdId();
   const heartbeat = setInterval(() => {
     // A throw here would end the process: nothing catches a timer's errors.
-    try { holdId(); } catch (e) { process.stderr.write(`pollen: could not check who holds "${ID}": ${e.message}\n`); }
+    try { holdId(); } catch (e) { process.stderr.write(`mycelium: could not check who holds "${ID}": ${e.message}\n`); }
   }, HEARTBEAT);
   heartbeat.unref(); // never the thing that keeps a hostless server alive
 }
@@ -789,7 +789,7 @@ function startAgent() {
 
 function startWatch(id) {
   if (!id) {
-    process.stderr.write("usage: node pollen.mjs --watch <agent-id>\n");
+    process.stderr.write("usage: node mycelium.mjs --watch <agent-id>\n");
     process.exit(1);
   }
 
@@ -808,14 +808,14 @@ function startWatch(id) {
   function line(e) {
     // A denial is a settlement entry, not an arrival. Ringing it out would put
     // the text the human just rejected on the very channel they watch. A knock
-    // moved away by pollen_rename is settled the same way and rings on the new id.
+    // moved away by mycelium_rename is settled the same way and rings on the new id.
     if (e.status === "denied" || e.status === "moved") return null;
     if (e.status === "pending") {
-      return `[pollen] ${e.from} is knocking — pollen_allow or pollen_deny`;
+      return `[mycelium] ${e.from} is knocking — mycelium_allow or mycelium_deny`;
     }
     const preview = e.message.replace(/\s+/g, " ").trim();
     const short = preview.length > 120 ? preview.slice(0, 119) + "…" : preview;
-    return `[pollen] message from ${e.from} — pollen_inbox to read: ${short}`;
+    return `[mycelium] message from ${e.from} — mycelium_inbox to read: ${short}`;
   }
 
   function pump() {
@@ -836,19 +836,19 @@ function startWatch(id) {
   // starts deaf — a count, not a transcript, however long the agent was away.
   const waiting = unread(id).length;
   if (waiting) {
-    process.stdout.write(`[pollen] ${plural(waiting, "message")} waiting — pollen_inbox to read\n`);
+    process.stdout.write(`[mycelium] ${plural(waiting, "message")} waiting — mycelium_inbox to read\n`);
   }
 
-  // Counted apart from the above: these need a person, not a pollen_inbox.
+  // Counted apart from the above: these need a person, not a mycelium_inbox.
   const knocking = heldByPeer(id);
   if (knocking.size) {
     const n = [...knocking.values()].reduce((a, b) => a + b, 0);
-    process.stdout.write(`[pollen] ${plural(n, "knock")} waiting at the gate from ${[...knocking.keys()].join(", ")} — pollen_allow or pollen_deny\n`);
+    process.stdout.write(`[mycelium] ${plural(n, "knock")} waiting at the gate from ${[...knocking.keys()].join(", ")} — mycelium_allow or mycelium_deny\n`);
   }
 
   watch(journal, pump);
   setInterval(pump, 1000); // safety net — fs.watch misses appends on some filesystems
-  process.stderr.write(`pollen watching ${id}\n`);
+  process.stderr.write(`mycelium watching ${id}\n`);
 }
 
 // =============================================================================
@@ -858,7 +858,7 @@ function startWatch(id) {
 // Last in the file, so every constant above exists before any mode starts.
 
 if (process.argv.includes("--version")) {
-  process.stdout.write(`pollen ${VERSION}\n`);
+  process.stdout.write(`mycelium ${VERSION}\n`);
 } else if (process.argv.includes("--relay")) {
   startRelay();
 } else if (process.argv.includes("--watch")) {
