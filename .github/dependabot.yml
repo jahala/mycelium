@@ -1,7 +1,7 @@
-# Dependabot configuration — version updates only.
+# Dependabot configuration: version updates only.
 # See: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 #
-# github-actions is the only ecosystem here: pollen has no package.json and no
+# github-actions is the only ecosystem here: mycelium has no package.json and no
 # dependencies, which is the point of it.
 version: 2
 updates:

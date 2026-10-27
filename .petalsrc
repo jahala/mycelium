@@ -1,9 +1,9 @@
-# .petalsrc — pollen's brand connection to the plotplot umbrella.
+# .petalsrc: mycelium's brand connection to the plotplot umbrella.
 brand:
   # plotplot is the umbrella brand and the brand repo.
-  source: https://github.com/jahala/plotplot-ai.git
-  version: v2.0.0
-  # pollen's product layer is authored in the umbrella at .brand/products/pollen/
-  # and arrives with the fetch — do not re-author it here.
-  product: pollen
+  source: https://github.com/jahala/plotplot.git
+  version: v1.7.0
+  # mycelium's product layer is authored in the umbrella at .brand/products/mycelium/
+  # and arrives with the fetch. Do not re-author it here.
+  product: mycelium
   overrides: {}

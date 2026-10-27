@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mycelium": {
+      "command": "node",
+      "args": ["./mycelium.mjs"]
+    }
+  }
+}

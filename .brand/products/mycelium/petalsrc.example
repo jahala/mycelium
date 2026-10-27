@@ -1,0 +1,9 @@
+# .petalsrc — drop this at the root of the mycelium repo (rename to `.petalsrc`)
+brand:
+  # plotplot is the umbrella brand and the brand repo.
+  source: https://github.com/jahala/plotplot.git
+  version: v1.7.0
+  # mycelium's product layer is authored in the umbrella at .brand/products/mycelium/
+  # and arrives with the fetch — do not re-author it here.
+  product: mycelium
+  overrides: {}

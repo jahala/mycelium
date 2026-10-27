@@ -8,7 +8,7 @@
 | Vision | Building with AI that feels less like a gold rush and more like tending a garden: calm, crafted, and cumulative. |
 | Audience | Everyone building with AI — agent builders, AI engineers, and developers who live in the terminal. |
 | Founded | 2026 |
-| Brand Version | v2.0.0 |
+| Brand Version | v1.7.0 |
 
 ## Brand Story
 
@@ -22,4 +22,4 @@ They are files and skills, not dashboards and servers. Local-first, legible, and
 
 plotplot.ai is the organization — the garden. Each tool carries the shared family brand (palette, type, layout, surface, voice) plus its own product layer at `.brand/products/<product>/`: one accent from the Product Accents table, its own mark, tagline, and terminology. Deltas only; everything absent inherits from this umbrella.
 
-Today's beds: **tilth** (code intelligence), **tend** (feature mapping & narration), **petals** (brand intelligence for agents), **pleach** (the conductor — gates agent work and ships only what's verified), **umbel** (fanning out agent CLIs in tmux), **copeca** (cost-per-correct benchmarking — the objective yardstick for AI coding tools), and **pollen** (agent-to-agent messaging — mailboxes between agents, with a human at the gate). More are still seeds.
+Today's beds: **tilth** (code intelligence), **tend** (feature mapping & narration), **petals** (brand intelligence for agents), **pleach** (the conductor — gates agent work and ships only what's verified), **umbel** (fanning out agent CLIs in tmux), **copeca** (cost-per-correct benchmarking — the objective yardstick for AI coding tools), **pollen** (agent-to-agent messaging — mailboxes between agents, with a human at the gate), and **weeder** (the judge of the diff — deterministic gates on what an agent changed). More are still seeds.

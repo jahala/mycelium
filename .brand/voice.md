@@ -56,18 +56,19 @@ Family-wide canonical terms live here; each product may add its own table in `pr
 
 ## Capitalization & Microcopy
 
-- **Sentence case everywhere** — headings, buttons, nav items, labels, table headers. Title Case Is Off-Brand. (Uppercase kicker labels are a CSS `text-transform`, not authored case.)
-- **Product names are lowercase, always:** plotplot, tilth, tend, petals, pleach, umbel, copeca, pollen.
+- **Sentence case everywhere:** headings, buttons, nav items, labels, table headers. Title Case Is Off-Brand. (Uppercase kicker labels are a CSS `text-transform`, not authored case.)
+- **Product names are lowercase, always:** plotplot, tilth, tend, petals, pleach, umbel, copeca, pollen, weeder.
 - **Buttons are verb-first** and three words or fewer: "Install tilth", "Browse the garden", "View source".
-- **Errors** state what happened, why it matters, and the next action — in that order. No jokes, no "Oops".
+- **Errors** state what happened, why it matters, and the next action, in that order. No jokes, no "Oops".
 - **No exclamation marks** in interface copy. Numerals for numbers. Playfulness comes from wit and imagery, not punctuation.
+- **No em dashes in copy.** A comma, a full stop, or a colon before a list does the work. Imitated chrome (a terminal window title) is not copy, and neither is real tool output quoted verbatim: a terminal pane shows what the tool prints, dashes and all.
 
 ## Before / After Examples
 
 | Context | Before (bad) | After (good) |
 |---------|-------------|---------------|
 | Marketing headline | Supercharge your AI workflow with next-gen tools. | A garden of small, sharp tools for building with AI. |
-| Feature description | Unlock seamless, AI-powered code intelligence. | tilth gives your agent an AST-aware map of the codebase — so it reads your code instead of grepping it. |
+| Feature description | Unlock seamless, AI-powered code intelligence. | tilth gives your agent an AST-aware map of the codebase, so it reads your code instead of grepping it. |
 | Error message | Oops, something magical broke. Try again later. | tilth could not read that file. Check the path and retry. |
 | Dashboard label | AI-powered insights | What the agent found |
 | CTA | Unlock your free AI workspace. | Install tilth |

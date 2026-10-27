@@ -49,3 +49,15 @@ New breakpoints are off-brand — adapt within these two.
 - Hierarchy lives in the spacing itself: tight kicker → title (one thought),
   medium title → lede, generous lede → actions.
 - Avoid crowded dashboards, dense panels, and arbitrary one-off gaps.
+
+## Page structure
+
+The umbrella page, in order: header (with the inchworm on its bottom line) · hero (copy beside the site plan) · motto rule · the index of beds by row · the garden film · why a garden · garden footer. A bed page, in order: header · direction sign · hero (title, lede, actions beside a real terminal, the key plan) · the bed's own sections · garden footer with the plotplot band. `reference/landing.html` and `reference/product.html` are these structures built.
+
+## Guide lines
+
+The hero carries faint vertical guide lines: one even 96px rhythm across the full width of the viewport, centred on the page, 1px in `--pp-border`, drawn as the hero's background. They fade from full at the top of the hero to nothing at its bottom. They are not fitted to the content grid; the content sits over them.
+
+## Seams
+
+A section hands over to the next without a hard edge where one of them is illustration. The garden film's soil fades from the soil line to nothing at the band's bottom edge, the band's background shades into the next section's colour over its lower part, and the next section drops its top border. Two plain sections keep the hairline between them.

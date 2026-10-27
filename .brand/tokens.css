@@ -8,6 +8,7 @@
   --pp-leaf:         #4A9E3F;
   --pp-forest:       #214A2C;
   --pp-accent:       #E89227;
+  --pp-marigold:     #F4B63A;
   --pp-amber-ink:    #A86518;
   --pp-text:         #3A2718;
   --pp-text-soft:    #786148;
@@ -24,17 +25,42 @@
   --pp-info:    #3F7186;
   --pp-muted:   #9A8C72;
 
-  /* color — product accents / blooms */
-  --pp-tilth:   #4E88A6;
-  --pp-tend:    #D6502F;
-  --pp-petals:  #E588A0;
-  --pp-pleach:  #97539B;
-  --pp-umbel:   #E89227;
-  --pp-copeca:  #1F8A7B;
-  --pp-pollen:  #C8B330;
+  /* color — blooms, one family per row of the garden, light to dark in order of use */
+  /* find: sky */
+  --pp-mull: #76D4FF;
+  --pp-glean: #0096B3;
+  --pp-cultivate: #09636B;
+  /* shape: soil */
+  --pp-graft: #FEAA68;
+  --pp-petals: #CC6A37;
+  --pp-trellis: #A33C26;
+  /* build: leaf */
+  --pp-tend: #98D98D;
+  --pp-pleach: #779C46;
+  --pp-umbel: #545E05;
+  /* ship: bloom */
+  --pp-transplant: #FD81ED;
+  --pp-pollen: #BD59D2;
+  --pp-harvest: #7D2EB0;
+  /* the shed: wood and iron */
+  --pp-tilth: #F7D4B7;
+  --pp-mycelium: #C9A18D;
+  --pp-weeder: #A37A6E;
+  --pp-stake: #774F4C;
+  /* the boundary: stone */
+  --pp-hedge: #C9C7E7;
+  --pp-gate: #8F94B2;
+  --pp-well: #4D5972;
+  /* the seasons: weather */
+  --pp-gardener: #C7C784;
+  --pp-almanac: #A19251;
+  --pp-upkeep: #6E520D;
+  /* copeca left the garden on 2026-10-26; its public page keeps juniper */
+  --pp-copeca: #1F8A7B;
 
-  /* color — the bloom as a word (pollen is display-only on paper) */
-  --pp-pollen-ink: #7E6A08;
+  /* color — the bloom as a word on paper (4.5:1) */
+  --pp-pollen-ink: #A844BC;
+  --pp-weeder-word: #8F675B;
 
   /* color — soil-night terminal */
   --pp-term-bg:      #1C1610;
@@ -101,6 +127,13 @@
   --pp-bg-band:   #211A12;
   --pp-surface:   #262019;
   --pp-border:    #403628;
-  --pp-pollen:     #D9C44A;
-  --pp-pollen-ink: #D9C44A;
+  --pp-cultivate: #1E6F77;
+  --pp-trellis: #AA422C;
+  --pp-umbel: #5F6A18;
+  --pp-harvest: #8A3EBF;
+  --pp-stake: #835A57;
+  --pp-well: #58647E;
+  --pp-upkeep: #7D6021;
+  --pp-pollen-ink: #BD59D2;
+  --pp-weeder-word: #A37A6E;
 }
