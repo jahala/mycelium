@@ -1,9 +1,0 @@
-# .petalsrc — drop this at the root of the pollen repo (rename to `.petalsrc`)
-brand:
-  # plotplot is the umbrella brand and the brand repo.
-  source: https://github.com/jahala/plotplot-ai.git
-  version: v2.0.0
-  # pollen's product layer is authored in the umbrella at .brand/products/pollen/
-  # and arrives with the fetch — do not re-author it here.
-  product: pollen
-  overrides: {}

@@ -16,8 +16,8 @@
   --pp-text:#3A2718; --pp-text-soft:#786148;
   --pp-bg:#FAF5E9; --pp-bg-band:#F2EAD6; --pp-bg-artifact:#FCFAF2; --pp-surface:#F5EEDD; --pp-border:#E2D8C0;
   --pp-healthy:#46913C; --pp-caution:#B0741C; --pp-error:#BC4126; --pp-info:#3F7186; --pp-muted:#9A8C72;
-  --pp-tilth:#4E88A6; --pp-tend:#D6502F; --pp-petals:#E588A0; --pp-pleach:#97539B;
-  --pp-umbel:#E89227; --pp-copeca:#1F8A7B; --pp-mycelium:#C8B330; --pp-mycelium-ink:#7E6A08;
+  --pp-tilth:#F7D4B7; --pp-tend:#98D98D; --pp-petals:#CC6A37; --pp-pleach:#779C46;
+  --pp-umbel:#545E05; --pp-copeca:#1F8A7B; --pp-mycelium:#C9A18D;
   --pp-term-bg:#1C1610; --pp-term-surface:#262019; --pp-term-border:#403628;
   --pp-term-green:#84C56A; --pp-term-sun:#F2A93B; --pp-term-text:#F3ECD9;
   --pp-font-heading:'Fraunces',Georgia,serif; --pp-font-body:'Hanken Grotesk',system-ui,sans-serif;
@@ -37,13 +37,13 @@
   --pp-primary:#84C56A; --pp-accent:#F2A93B; --pp-leaf:#9FD08A;
   --pp-text:#F3ECD9; --pp-text-soft:#C9BBA0;
   --pp-bg:#1C1610; --pp-bg-band:#211A12; --pp-bg-artifact:#211A12; --pp-surface:#262019; --pp-border:#403628;
-  --pp-mycelium:#D9C44A; --pp-mycelium-ink:#D9C44A;
+  --pp-umbel:#5F6A18;
 }}
 [data-theme="dark"]{
   --pp-primary:#84C56A; --pp-accent:#F2A93B; --pp-leaf:#9FD08A;
   --pp-text:#F3ECD9; --pp-text-soft:#C9BBA0;
   --pp-bg:#1C1610; --pp-bg-band:#211A12; --pp-bg-artifact:#211A12; --pp-surface:#262019; --pp-border:#403628;
-  --pp-mycelium:#D9C44A; --pp-mycelium-ink:#D9C44A;
+  --pp-umbel:#5F6A18;
 }
 
 *,*::before,*::after{ box-sizing:border-box; }
@@ -65,7 +65,7 @@ code,kbd{ font-family:var(--pp-font-code); font-size:.88em; }
              padding:var(--pp-space-3xs) var(--pp-space-xs); border-radius:var(--pp-radius-sm); }
 section{ padding-block:var(--pp-space-2xl); }
 .kicker{ font-family:var(--pp-font-code); font-size:.78rem; letter-spacing:.08em; text-transform:uppercase;
-         color:var(--pp-mycelium-ink); margin:0 0 var(--pp-space-2xs); }
+         color:var(--pp-text-soft); margin:0 0 var(--pp-space-2xs); }
 .lede{ font-size:1.2rem; color:var(--pp-text-soft); max-width:58ch; }
 .rule{ border:0; border-top:var(--pp-stroke-hairline) solid var(--pp-border); margin:0; }
 
@@ -82,7 +82,7 @@ section{ padding-block:var(--pp-space-2xl); }
 .hero{ padding-block:var(--pp-space-xl) var(--pp-space-2xl); }
 .hero-grid{ display:grid; grid-template-columns:1fr 1fr; gap:var(--pp-space-xl); align-items:center; }
 .tagline{ font-family:var(--pp-font-heading); font-size:2rem; font-style:italic;
-          color:var(--pp-mycelium-ink); margin:var(--pp-space-2xs) 0 var(--pp-space-sm); }
+          color:var(--pp-text); margin:var(--pp-space-2xs) 0 var(--pp-space-sm); }
 .btn-row{ display:flex; flex-wrap:wrap; gap:var(--pp-space-2xs); margin-top:var(--pp-space-md); }
 .btn{ display:inline-block; font-family:var(--pp-font-code); font-size:.88rem; text-decoration:none;
       padding:var(--pp-space-2xs) var(--pp-space-sm); border-radius:var(--pp-radius-sm);
@@ -131,7 +131,7 @@ section{ padding-block:var(--pp-space-2xl); }
 
 /* modes */
 .modes{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--pp-space-sm); margin-top:var(--pp-space-lg); }
-.mode code{ display:block; font-size:.82rem; color:var(--pp-mycelium-ink); margin-bottom:var(--pp-space-3xs); }
+.mode code{ display:block; font-size:.82rem; color:var(--pp-text); margin-bottom:var(--pp-space-3xs); }
 .mode p{ margin:0; font-size:.98rem; color:var(--pp-text-soft); }
 
 /* start */
@@ -198,13 +198,14 @@ section{ padding-block:var(--pp-space-2xl); }
 <header class="top">
   <div class="wrap">
     <a class="brand" href="/">
-      <svg viewBox="0 0 32 32" role="img" aria-label="mycelium">
-        <path d="M13.6 29 C13.2 25.2, 11.2 21, 7.4 18.4" fill="none" stroke="var(--pp-primary)" stroke-width="2.1" stroke-linecap="round"/>
-        <path d="M18.4 29 C18.9 25.2, 21.2 21.4, 24.9 19.2" fill="none" stroke="var(--pp-primary)" stroke-width="2.1" stroke-linecap="round"/>
-        <circle cx="6.4" cy="15.8" r="3.1" fill="var(--pp-mycelium)"/>
-        <circle cx="26" cy="16.7" r="3.1" fill="var(--pp-mycelium)"/>
-        <circle cx="12.6" cy="10.6" r="1.4" fill="var(--pp-mycelium)"/>
-        <circle cx="18.8" cy="9.2" r="2.2" fill="var(--pp-mycelium)"/>
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="mycelium">
+        <!-- brand v1.7.0 products/mycelium/assets/mycelium-mark.svg: two of the same mushroom, joined underground by one thread -->
+        <rect width="24" height="24" rx="5.5" fill="var(--pp-mycelium)"/>
+        <g transform="translate(3.36 3.36) scale(0.72)" fill="none">
+          <path d="M2.8 10.2 C2.8 7.2 4.7 5.2 7 5.2 C9.3 5.2 11.2 7.2 11.2 10.2 Z" fill="#1C1610"/>
+          <path d="M12.8 10.2 C12.8 7.2 14.7 5.2 17 5.2 C19.3 5.2 21.2 7.2 21.2 10.2 Z" fill="#1C1610"/>
+          <path d="M7 10.2 V16.2 C7 18.4 8.4 19.6 10.4 19.6 H13.6 C15.6 19.6 17 18.4 17 16.2 V10.2" stroke="#1C1610" stroke-width="2"/>
+        </g>
       </svg>
       <span>mycelium</span>
     </a>

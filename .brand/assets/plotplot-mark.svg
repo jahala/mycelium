@@ -1,6 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" role="img" aria-label="plotplot">
-  <path d="M14 26 V12" fill="none" stroke="#357E2C" stroke-width="2" stroke-linecap="round"/>
-  <path d="M14 18.5 C9 17.5 6 13.5 6.6 9 C11 9.8 14 13.2 14 18.5 Z" fill="#357E2C"/>
-  <path d="M14 15.5 C19 14.5 22 10.5 21.4 6 C17 6.8 14 10.2 14 15.5 Z" fill="#357E2C"/>
-  <circle cx="14" cy="8" r="3" fill="#E89227"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="plotplot">
+  <!-- plotplot mark: a sprout, two leaves and a bloom; the family motif every bed grows from -->
+  <path d="M12 22 V8" stroke="#357E2C" stroke-width="2"/>
+  <path d="M12 17.6 C7.8 16.8 5.2 13.6 5.6 9.8 C9.3 10.4 12 13.2 12 17.6 Z" fill="#357E2C"/>
+  <path d="M12 14.6 C16.2 13.8 18.8 10.6 18.4 6.8 C14.7 7.4 12 10.2 12 14.6 Z" fill="#357E2C"/>
+  <circle cx="12" cy="4.6" r="2.5" fill="#F4B63A"/>
 </svg>

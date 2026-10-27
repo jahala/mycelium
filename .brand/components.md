@@ -31,7 +31,7 @@ Border color defaults to `#E2D8C0` on paper surfaces and `#403628` inside termin
 
 ## Shadow Recipes
 
-Shadows are always ink-tinted — `rgba(58, 39, 24, …)`, never pure black and never blue-gray. Two layers: a close contact shadow plus a soft ambient one.
+Shadows are always ink-tinted — `rgba(58, 39, 24, …)`, never pure black and never blue-gray. On soil-night they are soil-tinted, `rgba(8, 6, 4, …)`, the dark values in `tokens.css`, because an ink-brown shadow vanishes on soil. Two layers: a close contact shadow plus a soft ambient one.
 
 | Token | Value | Usage |
 |-------|-------|-------|
@@ -58,6 +58,7 @@ Rules:
 - `prefers-reduced-motion: reduce` MUST disable all entrances, blooms, and staggers. Non-negotiable.
 - Forbidden: bounce easings, pulsing/looping attention effects, parallax, confetti, spinners where progress is knowable.
 - Playful character comes from the `bloom` arrival and the illustration — never from breaking the no-bounce rule.
+- Two looping motions are allowed, and only these two, because they are illustration rather than attention: the **inchworm** on the header line and the **garden film**. Both keep a calm pace (an inchworm stride takes about 1.2 s; the film is a 24 s loop), pause when off screen or when the tab is hidden, and yield to `prefers-reduced-motion`: the inchworm is hidden, and the film shows one still frame. Anything else that loops is still forbidden.
 
 ## Component Conventions
 
@@ -71,7 +72,25 @@ Rules:
 | Terminal pane | Soil-night background + border from `colors.md`, radius-md, titlebar dots in error/caution/healthy order |
 | Pill / badge | radius-full, surface background, mono text |
 | Focus state | 2px solid primary outline, 3px offset, radius-xs — on every interactive element |
+| Bed hover | Speaks in the bed's own bloom: a 2px underline under the bed's name, or a tint of the bloom (about 30% into the surface) on a plot. The name stays ink. Never set the name in its bloom, because petals, pollen and sunlight are display-only on paper. Keyboard focus shows the same as hover. |
 | Footer | The garden footer — fixed forest band, cream text, a row of bloom-dot pills linking the whole garden (current product highlighted), and a "a plotplot garden tool" bottom bar. Full spec below. |
+
+## The allotment plan
+
+The family's pages are built from these pieces. `reference/landing.html` (the umbrella page) and `reference/product.html` (a bed page, weeder) are the pieces assembled; start from one, change only its marked `swap:` spots, and keep these values. Class names below are the reference pages' own.
+
+**Sign ink.** A sign keeps its bloom in both themes, so the numeral on it uses a fixed ink: `--sign-dark` (soil, `--pp-term-bg`) on the light blooms (tend, tilth, petals, umbel, pollen, copeca) and `--sign-light` (cream, `--pp-term-text`) on the dark ones (pleach, weeder). Each sign sets `--bloom` and `--on`. A bed page sets its own three aliases once in `:root`: `--bed` (its bloom), `--bed-word` (its bloom as a word: the bloom where it reads, else its ink variant, e.g. `--pp-weeder-word`, `--pp-pollen-ink`, `--pp-amber-ink`) and `--bed-on` (its sign ink).
+
+| Component | Convention |
+|---|---|
+| Site plan (`.plan-slot` › `.sheet`) | The umbrella hero's illustration, one SVG (viewBox 592 × 708) on a card: surface, hairline border, radius-lg, shadow-rest. The stem is a 5-unit growth-green line from the gate up to the sprout. Rows hang off it as circle nodes (r 18, ink 2-unit stroke on paper) lettered A–D in mono 700. Plots are 154 × 96, radius 8, filled with the bloom at 16% into the surface and stroked in the bloom at 1.5. A plot holds a 36-unit plate in the bloom with its two-digit numeral (mono 700, 16px, in `--on`), a pictogram at top right, the name in Fraunces 600 at 23px, and a status dot (healthy fill for live, a muted ring for soon). Fallow plots are dashed in muted (4 5). Below the rows: the shed ("your repo") and the compost heap ("what was tried feeds the next bed"), then the gate. Each plot links to its bed. |
+| Bed sign plate (`.plate`) | 44px square, radius-sm, the bloom as fill, the numeral in mono 700 at .95rem in `--on`. A bed that is not yet live wears a 2px inset ring of its bloom with an ink numeral instead of the fill. |
+| Index of beds (`.index` › `.rows` › `.row`) | The garden as an open index on the 12-column grid, with no cards and no frame. Each row starts with a hairline; its margin (columns 1–3) carries the row letter in light Fraunces, the row's name and its question; its content (columns 4–12) lists its beds. A bed (`.bed`) is one line: plate · name (Fraunces 540, 1.5rem) with its role as a mono label · one sentence of description · status. At 880 the status drops under the description; at 520 the bed stacks beside its plate. |
+| Direction sign (`.waysign`) | The strip under a bed page's header, filled with `--bed`, text in `--bed-on`, in three parts: ← plotplot · the garden; the bed itself (row node and name, plate, name); the next bed along the plan →. Mono labels, uppercase, tracked .16em. |
+| Key plan (`.here-map`) | A bed page's small site plan, "you are here" (SVG 200 × 196): the stem, four row nodes, every plot as an outline (fallow ones faint), this bed's plot filled with `--bed` and its numeral in `--bed-on`, and a pin. It links to the garden on plotplot.ai. |
+| Motto rule (`.motto-rule`) | The motto as a single italic line centred between two hairlines, the sprout leading it, the supporting line in body type beneath (type in `typography.md`, Display pairings). On phones the hairlines give way and the sprout stands over the words. |
+| Garden film band (`.pp-film`) | The shared film from `assets/garden-film/`, pasted verbatim. |
+| Inchworm (`.inchworm`) | The shared looper from `assets/inchworm.html`, the last child of the sticky header. |
 
 ## Footer — the garden footer
 
@@ -102,25 +121,26 @@ Rules:
 - Required on every **product** page: the **plotplot band** (links back to plotplot.ai), the forest surface, the garden row (full garden, bloom dots, current highlighted), and the "a plotplot garden tool" attribution. The umbrella page keeps the forest footer but omits the band.
 - Default is **three columns** — identity · the garden · nearby — collapsing to one at 880; a page with nothing "nearby" may drop to two. The umbrella page (plotplot.ai) uses the same three columns (identity · the garden · the project).
 - The band is a **shared family surface**: built from fixed family tokens (`--pp-forest`, `--pp-term-text`, `--pp-term-green`) so it renders identically in every theme **and on every product** — never wire it to theme-flipping vars, and never re-tint it to the product's accent. Per-product colour lives only in the garden-row dots and the current-pill highlight.
+- Garden-row links go to each bed's page where it has one (`https://jahala.github.io/<bed>/`), as the reference pages do; the snippet below shows repository links, which stand in for a bed with no page yet.
 - `/petals check` verifies the footer's colors and forest↔cream contrast, not its DOM; the garden row's completeness is a convention the building agent applies and review confirms.
 
 ### Reference implementation
 
-Copy this verbatim and change only the three marked spots — the **identity** column, the **`.is-current`** pill, and the repo **links**. Everything else (forest surface, garden row, bottom bar) stays identical across the garden; all colour resolves from the `--pp-*` tokens already inlined on every plotplot page, so it adapts without being re-specified.
+Copy this verbatim and change only the three marked spots: the **identity** column, the **`.is-current`** pill, and the repo **links**. Everything else (forest surface, garden row, bottom bar) stays identical across the garden; all colour resolves from the `--pp-*` tokens already inlined on every plotplot page, so it adapts without being re-specified.
 
 ```html
 <!-- garden footer · shared family surface. swap ONLY: (1) the identity column, (2) the .is-current pill, (3) the repo links -->
 <footer class="gf">
   <div class="gf-wrap">
 
-    <!-- 0 · plotplot band — same on every product page; links home. (the umbrella page omits this) -->
+    <!-- 0 · plotplot band: same on every product page; links home (the umbrella page omits this) -->
     <div class="gf-plot">
       <a class="gf-plotbrand" href="https://plotplot.ai" aria-label="plotplot home">
-        <svg class="mark" viewBox="0 0 28 28" aria-hidden="true">
-          <path class="m-stem" d="M14 26 V12"/>
-          <path class="m-leaf" d="M14 18.5 C9 17.5 6 13.5 6.6 9 C11 9.8 14 13.2 14 18.5 Z"/>
-          <path class="m-leaf" d="M14 15.5 C19 14.5 22 10.5 21.4 6 C17 6.8 14 10.2 14 15.5 Z"/>
-          <circle class="m-bloom" cx="14" cy="8" r="3"/>
+        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+          <path class="m-stem" d="M12 22 V8"/>
+          <path class="m-leaf" d="M12 17.6 C7.8 16.8 5.2 13.6 5.6 9.8 C9.3 10.4 12 13.2 12 17.6 Z"/>
+          <path class="m-leaf" d="M12 14.6 C16.2 13.8 18.8 10.6 18.4 6.8 C14.7 7.4 12 10.2 12 14.6 Z"/>
+          <circle class="m-bloom" cx="12" cy="4.6" r="2.5"/>
         </svg>
         <span class="wordmark">plotplot</span>
       </a>
@@ -130,14 +150,14 @@ Copy this verbatim and change only the three marked spots — the **identity** c
 
     <div class="gf-grid">
 
-      <!-- 1 · identity — per product -->
+      <!-- 1 · identity: per product -->
       <div class="gf-col">
         <h4>umbel</h4>
-        <p class="gf-soft">fan many agent CLIs out from one stem — drive claude, codex, and gemini together in tmux.</p>
+        <p class="gf-soft">fan many agent CLIs out from one stem. drive claude, codex and gemini together in tmux.</p>
         <p class="gf-soft"><a href="https://github.com/jahala/umbel">github →</a> &nbsp;·&nbsp; MIT</p>
       </div>
 
-      <!-- 2 · the garden — identical on every page; add .is-current to THIS product -->
+      <!-- 2 · the garden: identical on every page; add .is-current to THIS product -->
       <div class="gf-col">
         <h4>the plotplot garden</h4>
         <nav class="gf-garden" aria-label="the garden">
@@ -148,14 +168,15 @@ Copy this verbatim and change only the three marked spots — the **identity** c
           <a href="https://github.com/jahala/umbel"  style="--bloom:var(--pp-umbel)" class="is-current"><span class="gf-dot"></span>umbel</a>
           <a href="https://github.com/jahala/copeca" style="--bloom:var(--pp-copeca)"><span class="gf-dot"></span>copeca</a>
           <a href="https://github.com/jahala/pollen" style="--bloom:var(--pp-pollen)"><span class="gf-dot"></span>pollen</a>
+          <a href="https://github.com/jahala/weeder" style="--bloom:var(--pp-weeder)"><span class="gf-dot"></span>weeder</a>
         </nav>
         <p class="gf-soft">small, sharp tools for building with agents.</p>
       </div>
 
-      <!-- 3 · nearby — optional; drop the whole column if there's nothing -->
+      <!-- 3 · nearby: optional; drop the whole column if there's nothing -->
       <div class="gf-col">
         <h4>nearby</h4>
-        <p class="gf-soft"><a href="https://github.com/jahala/walkie-clawkie">walkie-clawkie</a> — push-to-talk between agents mid-turn.</p>
+        <p class="gf-soft"><a href="https://github.com/jahala/mrkd">mrkd</a>, a native markdown viewer for macOS.</p>
         <p class="gf-soft"><a href="https://buymeacoffee.com/jahala">buy me a coffee →</a></p>
       </div>
 
@@ -169,7 +190,7 @@ Copy this verbatim and change only the three marked spots — the **identity** c
 ```
 
 ```css
-/* garden footer · shared family surface — identical on every page; never re-tint to the product accent */
+/* garden footer · shared family surface: identical on every page; never re-tint to the product accent */
 .gf          { background: var(--pp-forest); color: var(--pp-term-text); }
 .gf-wrap     { max-width: var(--pp-container-max); margin: 0 auto;
                padding: var(--pp-space-xl) var(--pp-gutter) var(--pp-space-lg); }
@@ -181,7 +202,7 @@ Copy this verbatim and change only the three marked spots — the **identity** c
 .gf .mark    { width: 28px; height: 28px; flex: none; }
 .gf .m-stem  { fill: none; stroke: var(--pp-term-green); stroke-width: 2; stroke-linecap: round; }
 .gf .m-leaf  { fill: var(--pp-term-green); }
-.gf .m-bloom { fill: var(--pp-accent); }
+.gf .m-bloom { fill: var(--pp-marigold); }
 .gf-plot     { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pp-space-2xs) var(--pp-space-md);
                padding-bottom: var(--pp-space-md); margin-bottom: var(--pp-space-lg);
                border-bottom: 1px solid rgba(243,236,217,.14); }
