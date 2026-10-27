@@ -62,27 +62,27 @@ An agent that has to remember to check its inbox will miss things. Run the watch
 node mycelium.mjs --watch my-agent
 ```
 
-It prints one line per message and keeps running, so any harness that reads lines can rouse the agent — Claude Code's `Monitor`, a `&` in a shell, `systemd`, a tmux pane. Two things keep the lines from going nowhere. A harness tool that reports only when a process exits never hears a watcher that runs forever; in Claude Code that is a background Bash task, so use `Monitor`. And if you pipe the watcher, every later stage must flush per line (`grep --line-buffered`, not plain `cut`), or lines wait in a buffer and silence looks like an empty inbox.
+It prints one line per message and keeps running, so any harness that reads lines can rouse the agent: Claude Code's `Monitor`, a `&` in a shell, `systemd`, a tmux pane. Two things keep the lines from going nowhere. A harness tool that reports only when a process exits never hears a watcher that runs forever; in Claude Code that is a background Bash task, so use `Monitor`. And if you pipe the watcher, every later stage must flush per line (`grep --line-buffered`, not plain `cut`), or lines wait in a buffer and silence looks like an empty inbox.
 
 The MCP server tells the agent the full path of the command, so it works from any directory.
 
 ```
-[mycelium] message from beta — mycelium_inbox to read: the Q4 answers are in /tmp/drop
-[mycelium] stranger is knocking — mycelium_allow or mycelium_deny
+[mycelium] message from beta; mycelium_inbox to read: the Q4 answers are in /tmp/drop
+[mycelium] stranger is knocking; mycelium_allow or mycelium_deny
 ```
 
 The line is a doorbell, not the message: `mycelium_inbox` is still what hands the text over. Messages held at the trust gate ring without quoting what they said.
 
-On startup it also rings once for anything already outstanding, counting the two separately — because they need different things from you:
+On startup it also rings once for anything already outstanding, counting the two separately, because they need different things from you:
 
 ```
-[mycelium] 2 messages waiting — mycelium_inbox to read
-[mycelium] 1 knock waiting at the gate from gamma — mycelium_allow or mycelium_deny
+[mycelium] 2 messages waiting; mycelium_inbox to read
+[mycelium] 1 knock waiting at the gate from gamma; mycelium_allow or mycelium_deny
 ```
 
 A denial is never rung out. Echoing the text a human just rejected onto the channel they watch would defeat the point of denying it.
 
-Don't watch `/tmp/mycelium/<id>/inbox` directly. Those files are consumed within milliseconds of landing, so a poll almost always finds an empty directory. Watch the journal — it is append-only and nothing is ever removed from it.
+Don't watch `/tmp/mycelium/<id>/inbox` directly. Those files are consumed within milliseconds of landing, so a poll almost always finds an empty directory. Watch the journal: it is append-only and nothing is ever removed from it.
 
 ## Cross-machine
 
@@ -113,28 +113,28 @@ Any tunnel or VPN works. mycelium just speaks HTTP to a URL.
 
 Strangers knock; you decide. An unvouched peer is held, and a person allows or denies it.
 
-The sender is told, rather than left guessing — `mycelium_send` reports what the receiver actually did with the message:
+The sender is told, rather than left guessing: `mycelium_send` reports what the receiver actually did with the message:
 
 ```
 Sent to beta.
-Held at beta's trust gate — beta must allow "alpha" before this is delivered.
-Queued for beta — beta's mycelium is not running. The message waits in the mailbox until beta starts.
-Queued for beta — no confirmation from beta's mycelium; it stays in the mailbox until taken.
+Held at beta's trust gate. beta must allow "alpha" before this is delivered.
+Queued for beta. beta's mycelium is not running. The message waits in the mailbox until beta starts.
+Queued for beta. No confirmation from beta's mycelium; it stays in the mailbox until taken.
 ```
 
 `mycelium_agents` tells you before you send whether each peer is running. It also tells you after sending what became of your messages:
 
 ```
-beta (running) — has not read 1 of your 3 messages
-gamma (not running, last seen 2026-09-05 14:02Z) — has read your message
-delta (running) — holds your message at the gate
+beta (running): has not read 1 of your 3 messages
+gamma (not running, last seen 2026-09-05 14:02Z): has read your message
+delta (running): holds your message at the gate
 ```
 
 No receipt travels back for this. The receiver's journal and cursor already record what arrived and what was read, and on one machine the sender can see them. Over a relay there is no read state, for the same reason there is no gate verdict.
 
 An agent waiting on a reply that can never come is worse than one told to go ask a human. Over a relay only the first is possible: the gate runs in the receiver's process on the far side, and its verdict has no route back, so cross-machine senders learn the message left but not whether it was let in.
 
-Knocks queue rather than replace each other, so a stranger's follow-up doesn't destroy the message it's asking about — `mycelium_allow` delivers all of them, oldest first.
+Knocks queue rather than replace each other, so a stranger's follow-up doesn't destroy the message it's asking about: `mycelium_allow` delivers all of them, oldest first.
 
 Nobody waiting at the gate goes unnamed. `mycelium_inbox` lists them after any messages, and a server that starts with knocks already held says who they are from:
 
@@ -170,9 +170,9 @@ A peer you let in with `mycelium_allow` stays allowed. mycelium writes its id to
 
 ~860 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
 
-- `node mycelium.mjs` — MCP server that Claude Code (or any MCP host) spawns as a subprocess
-- `node mycelium.mjs --relay` — HTTP relay with SSE streams for real-time delivery
-- `node mycelium.mjs --watch ID` — tails an agent's journal, one line per new message
+- `node mycelium.mjs`: MCP server that Claude Code (or any MCP host) spawns as a subprocess
+- `node mycelium.mjs --relay`: HTTP relay with SSE streams for real-time delivery
+- `node mycelium.mjs --watch ID`: tails an agent's journal, one line per new message
 
 Local transport uses the filesystem. Remote transport uses HTTP + SSE. The agent doesn't know or care which one it's using.
 
@@ -182,10 +182,10 @@ Every arrival is appended to `/tmp/mycelium/<id>/journal.jsonl` before the mailb
 
 - `mycelium_inbox` lets any agent check for received messages. Each line says who sent it, when it arrived and its place in the journal: `[beta 2026-09-09T21:14:03Z #7]: …`. Claude Code agents also get automatic push via [channels](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/notifications#channels) (research preview), but `mycelium_inbox` works everywhere.
 - The journal is append-only and never rotated. It lives under `/tmp`, which the OS clears on reboot. The allow file lives beside it and is cleared with it, so after a reboot only `MYCELIUM_ALLOW` is trusted.
-- A message held at the trust gate survives a restart — the gate is read from the journal, so a knock you were rung about is still there to allow or deny.
+- A message held at the trust gate survives a restart. The gate is read from the journal, so a knock you were rung about is still there to allow or deny.
 - One server per id. Two servers on one id would take each other's messages, so a second one stands aside: every tool tells the agent why, and it takes over once the first is gone. The running server keeps its pid in `/tmp/mycelium/<id>/server.json` and touches the file every few seconds; the file's age is the "last seen" in `mycelium_agents`.
 - A server exits when its host closes its stdin, so a session that ends does not leave a server behind.
-- Tests: `node --test`. They drive real MCP servers over stdio against a real mailbox — nothing is mocked.
+- Tests: `node --test`. They drive real MCP servers over stdio against a real mailbox; nothing is mocked.
 - Requires Node.js 18+. Nothing else.
 
 ## Support

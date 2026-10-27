@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Hanken+Grotesk:wght@400..800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-/* plotplot tokens — mirrored from .brand/tokens.css; regenerate upstream, never here */
+/* plotplot tokens: mirrored from .brand/tokens.css; regenerate upstream, never here */
 :root{
   --pp-primary:#357E2C; --pp-primary-deep:#2C6B2A; --pp-leaf:#4A9E3F; --pp-forest:#214A2C;
   --pp-accent:#E89227; --pp-amber-ink:#A86518;
@@ -91,7 +91,7 @@ section{ padding-block:var(--pp-space-2xl); }
 .btn-go{ background:var(--pp-accent); color:#3A2718; font-weight:500; }
 .btn-quiet{ background:transparent; color:var(--pp-text); border:var(--pp-stroke-hairline) solid var(--pp-border); }
 
-/* terminal — soil-night, fixed family surface */
+/* terminal: soil-night, fixed family surface */
 .term{ background:var(--pp-term-bg); color:var(--pp-term-text); border:var(--pp-stroke-hairline) solid var(--pp-term-border);
        border-radius:var(--pp-radius-lg); box-shadow:var(--pp-shadow-float); overflow:hidden; }
 .term-bar{ display:flex; align-items:center; gap:var(--pp-space-3xs);
@@ -138,7 +138,7 @@ section{ padding-block:var(--pp-space-2xl); }
 .start{ background:var(--pp-bg-band); border-top:var(--pp-stroke-hairline) solid var(--pp-border); }
 .start .term{ margin-top:var(--pp-space-md); }
 
-/* garden footer · shared family surface — identical on every page; never re-tint to the product accent */
+/* garden footer · shared family surface, identical on every page; never re-tint to the product accent */
 .gf          { background: var(--pp-forest); color: var(--pp-term-text); }
 .gf-wrap     { max-width: var(--pp-container-max); margin: 0 auto;
                padding: var(--pp-space-xl) var(--pp-gutter) var(--pp-space-lg); }
@@ -243,19 +243,19 @@ section{ padding-block:var(--pp-space-2xl); }
 
 <span class="t-dim">thistle is not vouched for</span>
 <span class="t-prompt">$</span> mycelium_send to sorrel
-  Held at sorrel's trust gate — sorrel must
+  Held at sorrel's trust gate. sorrel must
   allow "thistle" before this is delivered.
 
 <span class="t-dim">sorrel's watcher rings, one line per arrival</span>
-<span class="t-ring">[mycelium]</span> message from brack — mycelium_inbox to
-        read: schema is frozen — migration 0007
+<span class="t-ring">[mycelium]</span> message from brack; mycelium_inbox to
+        read: schema is frozen; migration 0007
         is the last one before the cut
-<span class="t-ring">[mycelium]</span> thistle is knocking — mycelium_allow
+<span class="t-ring">[mycelium]</span> thistle is knocking; mycelium_allow
         or mycelium_deny
 
 <span class="t-prompt">$</span> mycelium_inbox
   [brack 2026-09-09T21:14:03Z #7]: schema is
-  frozen — migration 0007 is the last one
+  frozen; migration 0007 is the last one
   before the cut
   Held at the gate: thistle (1 message). Ask the
   user before calling mycelium_allow or mycelium_deny.
@@ -281,13 +281,13 @@ section{ padding-block:var(--pp-space-2xl); }
       </div>
       <div class="card">
         <h3><span class="bloom" style="background:var(--pp-pleach)"></span>pleach</h3>
-        <p>Interweaves the branches — conducts a plan through gates, deciding what is done
+        <p>Interweaves the branches: conducts a plan through gates, deciding what is done
           and what goes next. Direction still flows downward.</p>
       </div>
       <div class="card">
         <h3><span class="bloom" style="background:var(--pp-mycelium)"></span>mycelium</h3>
         <p>What growers say to each other. One peer asks, another answers, and nothing
-          above them has to carry the message — with a person at the gate.</p>
+          above them has to carry the message, with a person at the gate.</p>
       </div>
     </div>
   </div>
@@ -303,14 +303,14 @@ section{ padding-block:var(--pp-space-2xl); }
     <div class="gate-steps">
       <div class="step is-held">
         <h4>held</h4>
-        <p>An unvouched peer is stopped at the gate. Its message is kept, not shown — the
+        <p>An unvouched peer is stopped at the gate. Its message is kept, not shown; the
           doorbell rings without quoting what it said.
-          <span class="said">Held at sorrel's trust gate — sorrel must allow "thistle" before this is delivered.</span></p>
+          <span class="said">Held at sorrel's trust gate. sorrel must allow "thistle" before this is delivered.</span></p>
       </div>
       <div class="step is-allowed">
         <h4>allowed</h4>
         <p>A person opens the gate and every knock that peer made is delivered, oldest
-          first — a follow-up never destroys the message it was asking about.
+          first; a follow-up never destroys the message it was asking about.
           <span class="said">Allowed thistle. Their message has been delivered.</span></p>
       </div>
       <div class="step is-denied">
@@ -389,7 +389,7 @@ section{ padding-block:var(--pp-space-2xl); }
 <footer class="gf">
   <div class="gf-wrap">
 
-    <!-- 0 · plotplot band — same on every product page; links home. (the umbrella page omits this) -->
+    <!-- 0 · plotplot band: same on every product page; links home. (the umbrella page omits this) -->
     <div class="gf-plot">
       <a class="gf-plotbrand" href="https://plotplot.ai" aria-label="plotplot home">
         <svg class="mark" viewBox="0 0 28 28" aria-hidden="true">
@@ -406,14 +406,14 @@ section{ padding-block:var(--pp-space-2xl); }
 
     <div class="gf-grid">
 
-      <!-- 1 · identity — per product -->
+      <!-- 1 · identity: per product -->
       <div class="gf-col">
         <h4>mycelium</h4>
-        <p class="gf-soft">peer messaging between agents — one asks, another answers, and a person decides who is let in.</p>
+        <p class="gf-soft">peer messaging between agents: one asks, another answers, and a person decides who is let in.</p>
         <p class="gf-soft"><a href="https://github.com/jahala/mycelium">github →</a> &nbsp;·&nbsp; MIT</p>
       </div>
 
-      <!-- 2 · the garden — identical on every page; add .is-current to THIS product -->
+      <!-- 2 · the garden: identical on every page; add .is-current to THIS product -->
       <div class="gf-col">
         <h4>the plotplot garden</h4>
         <nav class="gf-garden" aria-label="the garden">
@@ -428,10 +428,10 @@ section{ padding-block:var(--pp-space-2xl); }
         <p class="gf-soft">small, sharp tools for building with agents.</p>
       </div>
 
-      <!-- 3 · nearby — optional; drop the whole column if there's nothing -->
+      <!-- 3 · nearby: optional; drop the whole column if there's nothing -->
       <div class="gf-col">
         <h4>nearby</h4>
-        <p class="gf-soft"><a href="https://github.com/jahala/umbel">umbel</a> — fan many agent CLIs out from one stem.</p>
+        <p class="gf-soft"><a href="https://github.com/jahala/umbel">umbel</a>: fan many agent CLIs out from one stem.</p>
         <p class="gf-soft"><a href="https://buymeacoffee.com/jahala">buy me a coffee →</a></p>
       </div>
 

@@ -1,24 +1,24 @@
 #!/usr/bin/env node
-// mycelium — peer messaging between agents. zero deps.
+// mycelium: peer messaging between agents. zero deps.
 //
 //   node mycelium.mjs             MCP server (agent-side)
 //   node mycelium.mjs --relay     HTTP relay (cross-machine hop)
 //   node mycelium.mjs --version   print the version
-//   node mycelium.mjs --watch ID  tail an agent's journal — one line per new message
+//   node mycelium.mjs --watch ID  tail an agent's journal, one line per new message
 //
 // Agent mode env:
-//   MYCELIUM_ID       optional — agent name (default: the directory it starts in)
-//   MYCELIUM_RELAY    optional — relay URL for cross-machine
-//   MYCELIUM_ALLOW    optional — comma-separated trusted agent IDs, or * for anyone
-//   MYCELIUM_DIR      optional — mailbox root (default /tmp/mycelium)
+//   MYCELIUM_ID       optional: agent name (default: the directory it starts in)
+//   MYCELIUM_RELAY    optional: relay URL for cross-machine
+//   MYCELIUM_ALLOW    optional: comma-separated trusted agent IDs, or * for anyone
+//   MYCELIUM_DIR      optional: mailbox root (default /tmp/mycelium)
 //
 // Peers let in with mycelium_allow are kept in MYCELIUM_DIR/<id>/allow, one per line.
 //
 // Relay mode env:
-//   MYCELIUM_PORT     optional — listen port (default 4747)
+//   MYCELIUM_PORT     optional: listen port (default 4747)
 //
 // Watch mode env:
-//   MYCELIUM_DIR      optional — mailbox root (default /tmp/mycelium)
+//   MYCELIUM_DIR      optional: mailbox root (default /tmp/mycelium)
 //
 import {
   watch, mkdirSync, readdirSync, readFileSync, appendFileSync,
@@ -64,7 +64,7 @@ function startRelay() {
       return res.end(JSON.stringify([...listeners.keys()]));
     }
 
-    // GET /listen/:id — SSE
+    // GET /listen/:id: SSE
     if (action === "listen" && id) {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -85,7 +85,7 @@ function startRelay() {
       return;
     }
 
-    // POST /send — { from, to, message }
+    // POST /send: { from, to, message }
     if (action === "send" && req.method === "POST") {
       const { from, to, message } = JSON.parse(await body(req));
       const push = listeners.get(to);
@@ -111,12 +111,12 @@ function startRelay() {
 }
 
 // =============================================================================
-// JOURNAL — append-only arrival log, shared by agent and watch modes
+// JOURNAL: append-only arrival log, shared by agent and watch modes
 // =============================================================================
 //
 // Mailbox files are transient: the server consumes and unlinks each one within
 // milliseconds of it landing, so nothing outside the process can reliably see
-// them. The journal is the durable record instead — every arrival is appended
+// them. The journal is the durable record instead: every arrival is appended
 // as one JSON line and never removed. That makes it both the inbox (messages
 // survive a server restart) and the one file a watcher can tail.
 //
@@ -133,7 +133,7 @@ function readJournal(id) {
   let raw = "";
   try { raw = readFileSync(journalPath(id), "utf-8"); } catch {}
   return raw.split("\n").flatMap((line) => {
-    // Blank tail, or a line caught mid-append — the next read gets it whole.
+    // Blank tail, or a line caught mid-append; the next read gets it whole.
     try { return JSON.parse(line); } catch { return []; }
   });
 }
@@ -183,7 +183,7 @@ function heldByPeer(id) {
 }
 
 // =============================================================================
-// LIVENESS — which server, if any, is running as an id
+// LIVENESS: which server, if any, is running as an id
 // =============================================================================
 //
 // The server holding an id writes its pid to server.json and touches the file
@@ -304,7 +304,7 @@ function startAgent() {
       await handle(msg);
     } catch (e) {
       // Nothing a tool does may cost the agent its radio, and the caller is
-      // still owed an answer — an unanswered request hangs it forever.
+      // still owed an answer: an unanswered request hangs it forever.
       if (msg.id !== undefined) reply(msg.id, text(`Request failed: ${e.message}`));
     }
   }).on("close", () => {
@@ -333,7 +333,7 @@ function startAgent() {
   }
 
   async function handle(msg) {
-    if (msg.id === undefined) return; // notifications — ignore
+    if (msg.id === undefined) return; // notifications: ignore
 
     if (msg.method === "initialize") {
       return reply(msg.id, {
@@ -443,17 +443,17 @@ function startAgent() {
       }
       const status = await tx.send(to, message);
       if (status === "queued" && !runningServer(to)) {
-        return text(`Queued for ${to} — ${to}'s mycelium is not running. The message waits in the mailbox until ${to} starts.`);
+        return text(`Queued for ${to}. ${to}'s mycelium is not running. The message waits in the mailbox until ${to} starts.`);
       }
       if (status === "unknown-agent") return text(`No mailbox for "${to}". The message was not sent. Check the id with mycelium_agents.`);
       if (status === "unreachable") {
         return text(`mycelium could not reach the relay. The message was not delivered to ${to}. Retry, or send it to a local peer.`);
       }
       if (status === "pending") {
-        return text(`Held at ${to}'s trust gate — ${to} must allow "${ID}" before this is delivered.`);
+        return text(`Held at ${to}'s trust gate. ${to} must allow "${ID}" before this is delivered.`);
       }
       if (status === "queued") {
-        return text(`Queued for ${to} — no confirmation from ${to}'s mycelium; it stays in the mailbox until taken.`);
+        return text(`Queued for ${to}. No confirmation from ${to}'s mycelium; it stays in the mailbox until taken.`);
       }
       return text(`Sent to ${to}.`);
     },
@@ -584,7 +584,7 @@ function startAgent() {
     mkdirSync(inbox, { recursive: true });
     let watcher;
 
-    // Reading the file is what claims it — fs.watch fires twice for one file
+    // Reading the file is what claims it: fs.watch fires twice for one file
     // and the second pass finds it gone. The unlink comes after the callback
     // has journalled the message, so a crash mid-handover retries rather than
     // loses it.
@@ -624,7 +624,7 @@ function startAgent() {
         const name = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}_from_${ID}`;
         // Write beside the mailbox, then rename in. The receiver is watching
         // this directory, and rename is the only way to put a whole file in
-        // front of it — writeFileSync creates the file before filling it.
+        // front of it; writeFileSync creates the file before filling it.
         const part = join(target, `.${name}.part`);
         writeFileSync(part, message);
         renameSync(part, join(target, `${name}.msg`));
@@ -640,7 +640,7 @@ function startAgent() {
             const seen = lastSeen(d);
             const status = runningServer(d) ? "running" : seen ? `not running, last seen ${seen}` : "not running";
             const state = readState(d, ID);
-            return `${d} (${status})${state ? ` — ${state}` : ""}`;
+            return `${d} (${status})${state ? `: ${state}` : ""}`;
           });
       },
       listen(cb) {
@@ -701,7 +701,7 @@ function startAgent() {
             });
             res.on("end", retry);
             res.on("error", retry);
-          }).on("error", retry); // refused connection, bad DNS — reached before any response
+          }).on("error", retry); // refused connection, bad DNS: reached before any response
         }
         connect();
       },
@@ -821,17 +821,17 @@ function startWatch(id) {
     // moved away by mycelium_rename is settled the same way and rings on the new id.
     if (e.status === "denied" || e.status === "moved") return null;
     if (e.status === "pending") {
-      return `[mycelium] ${e.from} is knocking — mycelium_allow or mycelium_deny`;
+      return `[mycelium] ${e.from} is knocking; mycelium_allow or mycelium_deny`;
     }
     const preview = e.message.replace(/\s+/g, " ").trim();
     const short = preview.length > 120 ? preview.slice(0, 119) + "…" : preview;
-    return `[mycelium] message from ${e.from} — mycelium_inbox to read: ${short}`;
+    return `[mycelium] message from ${e.from}; mycelium_inbox to read: ${short}`;
   }
 
   function pump() {
     const entries = readJournal(id);
     // A cleared /tmp starts a new journal. If the line we stopped at is gone or
-    // is no longer the same entry, start over — going quietly deaf is the one
+    // is no longer the same entry, start over: going quietly deaf is the one
     // thing a watcher must never do.
     if (entries.length < seen || at(entries[seen - 1]) !== mark) seen = 0;
     for (const e of entries.slice(seen)) {
@@ -843,21 +843,21 @@ function startWatch(id) {
   }
 
   // Ring once for whatever is already waiting, so arming the watcher never
-  // starts deaf — a count, not a transcript, however long the agent was away.
+  // starts deaf: a count, not a transcript, however long the agent was away.
   const waiting = unread(id).length;
   if (waiting) {
-    process.stdout.write(`[mycelium] ${plural(waiting, "message")} waiting — mycelium_inbox to read\n`);
+    process.stdout.write(`[mycelium] ${plural(waiting, "message")} waiting; mycelium_inbox to read\n`);
   }
 
   // Counted apart from the above: these need a person, not a mycelium_inbox.
   const knocking = heldByPeer(id);
   if (knocking.size) {
     const n = [...knocking.values()].reduce((a, b) => a + b, 0);
-    process.stdout.write(`[mycelium] ${plural(n, "knock")} waiting at the gate from ${[...knocking.keys()].join(", ")} — mycelium_allow or mycelium_deny\n`);
+    process.stdout.write(`[mycelium] ${plural(n, "knock")} waiting at the gate from ${[...knocking.keys()].join(", ")}; mycelium_allow or mycelium_deny\n`);
   }
 
   watch(journal, pump);
-  setInterval(pump, 1000); // safety net — fs.watch misses appends on some filesystems
+  setInterval(pump, 1000); // safety net: fs.watch misses appends on some filesystems
   process.stderr.write(`mycelium watching ${id}\n`);
 }
 

@@ -16,7 +16,7 @@ That is the whole toolchain. Node 18 or newer, nothing else to install.
 ## The bar for a change
 
 **Write the failing test first.** The suite drives real MCP servers over stdio against
-a real mailbox on disk. Nothing is mocked, and nothing should become mocked — a test
+a real mailbox on disk. Nothing is mocked, and nothing should become mocked. A test
 that passes without exercising the real path is worse than no test, because it tells
 you the opposite of the truth.
 
@@ -37,7 +37,7 @@ un-deliverable, it needs to say so in its return value.
 
 ## Voice
 
-User-facing strings — tool descriptions, errors, watch lines — are part of the product.
+User-facing strings (tool descriptions, errors, watch lines) are part of the product.
 Errors say what happened, why it matters, and the next action, in that order. Calm and
 precise, no jokes in failure paths. `.brand/` carries the full guidance; it is fetched
 from the plotplot umbrella and should be edited there, not here.

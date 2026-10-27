@@ -1,4 +1,4 @@
-// mycelium tests — node --test. Zero dependencies, like the thing it tests.
+// mycelium tests: node --test. Zero dependencies, like the thing it tests.
 //
 // Every test drives a real MCP server over stdio and a real mailbox on disk.
 // Nothing is mocked: if these pass, two agents can actually talk.
@@ -16,13 +16,13 @@ import { fileURLToPath } from "node:url";
 
 const MYCELIUM = join(dirname(fileURLToPath(import.meta.url)), "mycelium.mjs");
 
-// One mailbox root per run, left in place afterwards — it lives under the
+// One mailbox root per run, left in place afterwards. It lives under the
 // system temp dir, which the OS clears.
 const DIR = mkdtempSync(join(tmpdir(), "mycelium-test-"));
 
 // --- harness -----------------------------------------------------------------
 
-// Everything spawned gets torn down even when a test fails — otherwise a live
+// Everything spawned gets torn down even when a test fails; otherwise a live
 // child's open pipes keep the runner from ever exiting.
 const running = [];
 afterEach(() => Promise.all(running.splice(0).map((p) => {
@@ -103,7 +103,7 @@ function journal(id) {
 }
 
 // The mailbox file is gone once the server has taken the message off disk.
-// Waiting on that — rather than on the journal — keeps these tests honest:
+// Waiting on that, rather than on the journal, keeps these tests honest:
 // they describe delivery, not the mechanism that happens to implement it.
 function taken(id) {
   try { return readdirSync(join(DIR, id, "inbox")).every((f) => !f.endsWith(".msg")); }
@@ -135,7 +135,7 @@ test("an unread message survives a server restart", async () => {
   assert.equal(await beta.tool("mycelium_send", { to: "alpha", message: "the Q4 files are in /tmp/drop" }), "Sent to alpha.");
   await waitFor("alpha to take the message off disk", () => taken("alpha"));
 
-  // alpha never read it — this is where the old in-memory buffer lost it.
+  // alpha never read it. This is where the old in-memory buffer lost it.
   await alpha.stop();
 
   const revived = agent("alpha", { MYCELIUM_ALLOW: "beta" });
@@ -184,14 +184,14 @@ test("--watch prints a line the moment a message lands", async () => {
 
   await hugo.tool("mycelium_send", { to: "gina", message: "radio check" });
   await waitFor("a watch line", () => eyes.lines.length === 1);
-  assert.equal(eyes.lines[0], "[mycelium] message from hugo — mycelium_inbox to read: radio check");
+  assert.equal(eyes.lines[0], "[mycelium] message from hugo; mycelium_inbox to read: radio check");
 
   // A stranger's knock rouses the agent without leaking what they said.
   const ivan = agent("ivan");
   await ivan.ready();
   await ivan.tool("mycelium_send", { to: "gina", message: "secret payload" });
   await waitFor("a second watch line", () => eyes.lines.length === 2);
-  assert.equal(eyes.lines[1], "[mycelium] ivan is knocking — mycelium_allow or mycelium_deny");
+  assert.equal(eyes.lines[1], "[mycelium] ivan is knocking; mycelium_allow or mycelium_deny");
 });
 
 test("--watch rings for messages that are already waiting", async () => {
@@ -202,9 +202,9 @@ test("--watch rings for messages that are already waiting", async () => {
   await kim.tool("mycelium_send", { to: "jo", message: "you were out" });
   await waitFor("the message to land", () => taken("jo"));
 
-  const eyes = watcher("jo");           // armed after the fact — must not start deaf
+  const eyes = watcher("jo");           // armed after the fact; must not start deaf
   await waitFor("a watch line", () => eyes.lines.length === 1);
-  assert.equal(eyes.lines[0], "[mycelium] 1 message waiting — mycelium_inbox to read");
+  assert.equal(eyes.lines[0], "[mycelium] 1 message waiting; mycelium_inbox to read");
 });
 
 test("messages route through the relay, journal and all", async () => {
@@ -236,7 +236,7 @@ test("the sender is told when a message is held at the trust gate", async () => 
 
   assert.equal(
     await pete.tool("mycelium_send", { to: "opal", message: "knock knock" }),
-    `Held at opal's trust gate — opal must allow "pete" before this is delivered.`,
+    `Held at opal's trust gate. opal must allow "pete" before this is delivered.`,
   );
 });
 
@@ -270,9 +270,9 @@ test("--watch rings for messages held at the trust gate", async () => {
   await vic.tool("mycelium_send", { to: "uma", message: "let me in" });
   await waitFor("the message to be journalled", () => journal("uma").length === 1);
 
-  const eyes = watcher("uma");           // armed after the fact — must not start deaf
+  const eyes = watcher("uma");           // armed after the fact; must not start deaf
   await waitFor("a watch line", () => eyes.lines.length === 1);
-  assert.equal(eyes.lines[0], "[mycelium] 1 knock waiting at the gate from vic — mycelium_allow or mycelium_deny");
+  assert.equal(eyes.lines[0], "[mycelium] 1 knock waiting at the gate from vic; mycelium_allow or mycelium_deny");
 });
 
 test("a knock held at the gate can still be allowed after a restart", async () => {
@@ -283,7 +283,7 @@ test("a knock held at the gate can still be allowed after a restart", async () =
   await zoe.tool("mycelium_send", { to: "yuri", message: "let me in" });
   await waitFor("the knock to be journalled", () => journal("yuri").length === 1);
 
-  // The gate is rung by the journal, so it has to survive with the journal —
+  // The gate is rung by the journal, so it has to survive with the journal;
   // otherwise the watcher reports a knock nobody can ever action.
   await yuri.stop();
   const revived = agent("yuri");
@@ -306,7 +306,7 @@ test("an unreachable relay fails the call, not the mycelium", async () => {
   assert.match(said, /could not reach/i);
   assert.ok(far.alive(), "the mycelium died along with the request");
 
-  // Still serving afterwards — a failed send must not cost the agent its radio.
+  // Still serving afterwards: a failed send must not cost the agent its radio.
   assert.equal(plain(await far.tool("mycelium_inbox")), "No new messages.");
 });
 
@@ -344,7 +344,7 @@ test("--watch survives the journal being wiped under it", async () => {
     JSON.stringify({ seq: 1, ts: "2026-01-01T00:00:00.000Z", from: "milo", message: "after", status: "delivered" }) + "\n"
   );
   await waitFor("the line after the wipe", () => eyes.lines.length === 2);
-  assert.match(eyes.lines[1], /message from milo — mycelium_inbox to read: after/);
+  assert.match(eyes.lines[1], /message from milo; mycelium_inbox to read: after/);
 });
 
 test("a peer allowed once stays allowed after a restart", async () => {
@@ -445,7 +445,7 @@ test("--watch rings each arrival once when the journal repeats a seq", async () 
   appendFileSync(join(DIR, "oz", "journal.jsonl"), entry(6, "new") + "\n");
   await waitFor("the new line", () => eyes.lines.length >= 1);
   await sleep(1300);                     // past the safety-net tick, where the replay used to start
-  assert.deepEqual(eyes.lines, ["[mycelium] message from pia — mycelium_inbox to read: new"]);
+  assert.deepEqual(eyes.lines, ["[mycelium] message from pia; mycelium_inbox to read: new"]);
 });
 
 test("a restarted server says who is waiting at the gate", async () => {
@@ -504,7 +504,7 @@ test("the sender is told up front that the receiver is not running", async () =>
 
   assert.equal(
     await yan.tool("mycelium_send", { to: "zed", message: "are you there" }),
-    "Queued for zed — zed's mycelium is not running. The message waits in the mailbox until zed starts.",
+    "Queued for zed. zed's mycelium is not running. The message waits in the mailbox until zed starts.",
   );
 });
 
@@ -555,14 +555,14 @@ test("mycelium_agents says whether a peer has read what you sent", async () => {
   // sender's side, and agents trade "ack" messages to tell them apart.
   await ash.tool("mycelium_send", { to: "bryn", message: "one" });
   await ash.tool("mycelium_send", { to: "bryn", message: "two" });
-  assert.match(await ash.tool("mycelium_agents"), /^bryn \(running\) — has not read your 2 messages$/m);
+  assert.match(await ash.tool("mycelium_agents"), /^bryn \(running\): has not read your 2 messages$/m);
 
   await bryn.tool("mycelium_inbox");
   await ash.tool("mycelium_send", { to: "bryn", message: "three" });
-  assert.match(await ash.tool("mycelium_agents"), /^bryn \(running\) — has not read 1 of your 3 messages$/m);
+  assert.match(await ash.tool("mycelium_agents"), /^bryn \(running\): has not read 1 of your 3 messages$/m);
 
   await bryn.tool("mycelium_inbox");
-  assert.match(await ash.tool("mycelium_agents"), /^bryn \(running\) — has read all 3 of your messages$/m);
+  assert.match(await ash.tool("mycelium_agents"), /^bryn \(running\): has read all 3 of your messages$/m);
 });
 
 test("mycelium_agents says when a peer holds or denies your message at the gate", async () => {
@@ -571,11 +571,11 @@ test("mycelium_agents says when a peer holds or denies your message at the gate"
   await Promise.all([cass.ready(), dov.ready()]);
 
   await dov.tool("mycelium_send", { to: "cass", message: "let me in" });
-  assert.match(await dov.tool("mycelium_agents"), /^cass \(running\) — holds your message at the gate$/m);
+  assert.match(await dov.tool("mycelium_agents"), /^cass \(running\): holds your message at the gate$/m);
 
   // A denial is never rung out, but the sender is still owed the outcome.
   await cass.tool("mycelium_deny", { agent: "dov" });
-  assert.match(await dov.tool("mycelium_agents"), /^cass \(running\) — denied your message$/m);
+  assert.match(await dov.tool("mycelium_agents"), /^cass \(running\): denied your message$/m);
 });
 
 test("mycelium_rename takes the id a director expects, and the mail comes along", async () => {

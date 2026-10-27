@@ -37,7 +37,7 @@ reboot; if you set `MYCELIUM_DIR` somewhere durable, it does not.
 **Across machines.** `--relay` opens an HTTP listener (default port 4747) that is
 **unauthenticated and unencrypted**. Anyone who can reach it may send as any name and
 subscribe as any name. Run it on a loopback interface behind a tunnel that provides
-identity and TLS — never expose the port directly. The trust gate still applies at the
+identity and TLS. Never expose the port directly. The trust gate still applies at the
 receiver, so a stranger reaching the relay is held rather than delivered, but they can
 knock freely and they can read the traffic if the transport is not encrypted.
 
@@ -55,7 +55,7 @@ writes and one HTTP hop.
 
 Tests run on every push and pull request against Node 18, 20 and current. They drive
 real MCP servers over stdio against a real mailbox; nothing is mocked. Dependabot
-tracks GitHub Actions versions weekly — there are no package dependencies to track.
+tracks GitHub Actions versions weekly; there are no package dependencies to track.
 
 ## Reporting non-security bugs
 
