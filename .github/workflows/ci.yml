@@ -23,5 +23,5 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      # No install step: pollen has no dependencies, by design.
+      # No install step: mycelium has no dependencies, by design.
       - run: node --test

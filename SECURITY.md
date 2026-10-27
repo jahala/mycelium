@@ -4,7 +4,7 @@
 
 Please **don't** open a public issue. Use GitHub's private advisory flow:
 
-→ <https://github.com/jahala/pollen/security/advisories/new>
+→ <https://github.com/jahala/mycelium/security/advisories/new>
 
 We'll acknowledge within 72 hours and coordinate disclosure with you.
 
@@ -14,25 +14,25 @@ Only the latest release receives security updates. Older versions don't.
 
 ## Threat model
 
-pollen carries messages between agent processes. Its security control is the trust
-gate: an agent that is not listed in `POLLEN_ALLOW` cannot deliver anything until a
-person calls `pollen_allow`. Everything below is what that does and does not cover.
+mycelium carries messages between agent processes. Its security control is the trust
+gate: an agent that is not listed in `MYCELIUM_ALLOW` cannot deliver anything until a
+person calls `mycelium_allow`. Everything below is what that does and does not cover.
 
-**On one machine.** Mailboxes and journals live under `POLLEN_DIR` (default
-`/tmp/pollen/`) with your account's default permissions. Any process running as you
+**On one machine.** Mailboxes and journals live under `MYCELIUM_DIR` (default
+`/tmp/mycelium/`) with your account's default permissions. Any process running as you
 can read any agent's journal, including messages that were held at the gate. The gate
 decides what reaches an *agent's context*, not what is readable on disk. If a message
-would be damaging to disclose to another local process, pollen is the wrong carrier.
-The same holds for trust: peers let in with `pollen_allow` are listed in
-`POLLEN_DIR/<id>/allow`, and any process running as you can add a name there. A `*` in
-`POLLEN_ALLOW` or in that file turns the gate off for that agent. With a relay, that means
+would be damaging to disclose to another local process, mycelium is the wrong carrier.
+The same holds for trust: peers let in with `mycelium_allow` are listed in
+`MYCELIUM_DIR/<id>/allow`, and any process running as you can add a name there. A `*` in
+`MYCELIUM_ALLOW` or in that file turns the gate off for that agent. With a relay, that means
 anyone who can reach the relay reaches the agent. It
 can also write `server.json`, which says which server holds an id, and so keep a
 new server for that id standing aside.
 
 The journal is append-only and never rotated, so message text persists for the life of
 the directory rather than being consumed on read. Under `/tmp` the OS clears it on
-reboot; if you set `POLLEN_DIR` somewhere durable, it does not.
+reboot; if you set `MYCELIUM_DIR` somewhere durable, it does not.
 
 **Across machines.** `--relay` opens an HTTP listener (default port 4747) that is
 **unauthenticated and unencrypted**. Anyone who can reach it may send as any name and
@@ -41,9 +41,9 @@ identity and TLS — never expose the port directly. The trust gate still applie
 receiver, so a stranger reaching the relay is held rather than delivered, but they can
 knock freely and they can read the traffic if the transport is not encrypted.
 
-**Sender identity is by assertion.** `POLLEN_ID` is whatever the sender says it is.
+**Sender identity is by assertion.** `MYCELIUM_ID` is whatever the sender says it is.
 On one machine that is bounded by filesystem permissions; over a relay it is not
-bounded at all. `pollen_allow` is trust in a name, not in a key. `pollen_rename` follows
+bounded at all. `mycelium_allow` is trust in a name, not in a key. `mycelium_rename` follows
 the same rule: an agent can take any id that no running server holds, along with that
 id's allow list.
 
@@ -59,4 +59,4 @@ tracks GitHub Actions versions weekly — there are no package dependencies to t
 
 ## Reporting non-security bugs
 
-Open a regular issue: <https://github.com/jahala/pollen/issues>.
+Open a regular issue: <https://github.com/jahala/mycelium/issues>.

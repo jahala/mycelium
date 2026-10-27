@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>pollen — carry what matters.</title>
+<title>mycelium: what passes between, underground.</title>
 <meta name="description" content="Peer messaging between AI agents, with a human at the gate. One file, zero dependencies.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,7 +17,7 @@
   --pp-bg:#FAF5E9; --pp-bg-band:#F2EAD6; --pp-bg-artifact:#FCFAF2; --pp-surface:#F5EEDD; --pp-border:#E2D8C0;
   --pp-healthy:#46913C; --pp-caution:#B0741C; --pp-error:#BC4126; --pp-info:#3F7186; --pp-muted:#9A8C72;
   --pp-tilth:#4E88A6; --pp-tend:#D6502F; --pp-petals:#E588A0; --pp-pleach:#97539B;
-  --pp-umbel:#E89227; --pp-copeca:#1F8A7B; --pp-pollen:#C8B330; --pp-pollen-ink:#7E6A08;
+  --pp-umbel:#E89227; --pp-copeca:#1F8A7B; --pp-mycelium:#C8B330; --pp-mycelium-ink:#7E6A08;
   --pp-term-bg:#1C1610; --pp-term-surface:#262019; --pp-term-border:#403628;
   --pp-term-green:#84C56A; --pp-term-sun:#F2A93B; --pp-term-text:#F3ECD9;
   --pp-font-heading:'Fraunces',Georgia,serif; --pp-font-body:'Hanken Grotesk',system-ui,sans-serif;
@@ -37,13 +37,13 @@
   --pp-primary:#84C56A; --pp-accent:#F2A93B; --pp-leaf:#9FD08A;
   --pp-text:#F3ECD9; --pp-text-soft:#C9BBA0;
   --pp-bg:#1C1610; --pp-bg-band:#211A12; --pp-bg-artifact:#211A12; --pp-surface:#262019; --pp-border:#403628;
-  --pp-pollen:#D9C44A; --pp-pollen-ink:#D9C44A;
+  --pp-mycelium:#D9C44A; --pp-mycelium-ink:#D9C44A;
 }}
 [data-theme="dark"]{
   --pp-primary:#84C56A; --pp-accent:#F2A93B; --pp-leaf:#9FD08A;
   --pp-text:#F3ECD9; --pp-text-soft:#C9BBA0;
   --pp-bg:#1C1610; --pp-bg-band:#211A12; --pp-bg-artifact:#211A12; --pp-surface:#262019; --pp-border:#403628;
-  --pp-pollen:#D9C44A; --pp-pollen-ink:#D9C44A;
+  --pp-mycelium:#D9C44A; --pp-mycelium-ink:#D9C44A;
 }
 
 *,*::before,*::after{ box-sizing:border-box; }
@@ -65,7 +65,7 @@ code,kbd{ font-family:var(--pp-font-code); font-size:.88em; }
              padding:var(--pp-space-3xs) var(--pp-space-xs); border-radius:var(--pp-radius-sm); }
 section{ padding-block:var(--pp-space-2xl); }
 .kicker{ font-family:var(--pp-font-code); font-size:.78rem; letter-spacing:.08em; text-transform:uppercase;
-         color:var(--pp-pollen-ink); margin:0 0 var(--pp-space-2xs); }
+         color:var(--pp-mycelium-ink); margin:0 0 var(--pp-space-2xs); }
 .lede{ font-size:1.2rem; color:var(--pp-text-soft); max-width:58ch; }
 .rule{ border:0; border-top:var(--pp-stroke-hairline) solid var(--pp-border); margin:0; }
 
@@ -82,7 +82,7 @@ section{ padding-block:var(--pp-space-2xl); }
 .hero{ padding-block:var(--pp-space-xl) var(--pp-space-2xl); }
 .hero-grid{ display:grid; grid-template-columns:1fr 1fr; gap:var(--pp-space-xl); align-items:center; }
 .tagline{ font-family:var(--pp-font-heading); font-size:2rem; font-style:italic;
-          color:var(--pp-pollen-ink); margin:var(--pp-space-2xs) 0 var(--pp-space-sm); }
+          color:var(--pp-mycelium-ink); margin:var(--pp-space-2xs) 0 var(--pp-space-sm); }
 .btn-row{ display:flex; flex-wrap:wrap; gap:var(--pp-space-2xs); margin-top:var(--pp-space-md); }
 .btn{ display:inline-block; font-family:var(--pp-font-code); font-size:.88rem; text-decoration:none;
       padding:var(--pp-space-2xs) var(--pp-space-sm); border-radius:var(--pp-radius-sm);
@@ -131,7 +131,7 @@ section{ padding-block:var(--pp-space-2xl); }
 
 /* modes */
 .modes{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--pp-space-sm); margin-top:var(--pp-space-lg); }
-.mode code{ display:block; font-size:.82rem; color:var(--pp-pollen-ink); margin-bottom:var(--pp-space-3xs); }
+.mode code{ display:block; font-size:.82rem; color:var(--pp-mycelium-ink); margin-bottom:var(--pp-space-3xs); }
 .mode p{ margin:0; font-size:.98rem; color:var(--pp-text-soft); }
 
 /* start */
@@ -198,15 +198,15 @@ section{ padding-block:var(--pp-space-2xl); }
 <header class="top">
   <div class="wrap">
     <a class="brand" href="/">
-      <svg viewBox="0 0 32 32" role="img" aria-label="pollen">
+      <svg viewBox="0 0 32 32" role="img" aria-label="mycelium">
         <path d="M13.6 29 C13.2 25.2, 11.2 21, 7.4 18.4" fill="none" stroke="var(--pp-primary)" stroke-width="2.1" stroke-linecap="round"/>
         <path d="M18.4 29 C18.9 25.2, 21.2 21.4, 24.9 19.2" fill="none" stroke="var(--pp-primary)" stroke-width="2.1" stroke-linecap="round"/>
-        <circle cx="6.4" cy="15.8" r="3.1" fill="var(--pp-pollen)"/>
-        <circle cx="26" cy="16.7" r="3.1" fill="var(--pp-pollen)"/>
-        <circle cx="12.6" cy="10.6" r="1.4" fill="var(--pp-pollen)"/>
-        <circle cx="18.8" cy="9.2" r="2.2" fill="var(--pp-pollen)"/>
+        <circle cx="6.4" cy="15.8" r="3.1" fill="var(--pp-mycelium)"/>
+        <circle cx="26" cy="16.7" r="3.1" fill="var(--pp-mycelium)"/>
+        <circle cx="12.6" cy="10.6" r="1.4" fill="var(--pp-mycelium)"/>
+        <circle cx="18.8" cy="9.2" r="2.2" fill="var(--pp-mycelium)"/>
       </svg>
-      <span>pollen</span>
+      <span>mycelium</span>
     </a>
     <nav aria-label="sections">
       <a href="#channel">the channel</a>
@@ -222,44 +222,44 @@ section{ padding-block:var(--pp-space-2xl); }
   <div class="wrap hero-grid">
     <div>
       <p class="kicker">peer messaging for agents</p>
-      <h1>pollen</h1>
-      <p class="tagline">carry what matters.</p>
+      <h1>mycelium</h1>
+      <p class="tagline">what passes between, underground.</p>
       <p class="lede">One agent asks another a question and uses the answer, without a
         supervisor having to relay it. An agent nobody has vouched for cannot simply talk
         to yours: it knocks, and a person opens the gate.</p>
       <p class="lede">One file of Node. No dependencies. Any MCP host.</p>
       <div class="btn-row">
-        <a class="btn btn-go" href="#start">install pollen</a>
-        <a class="btn btn-quiet" href="https://github.com/jahala/pollen">read the source</a>
+        <a class="btn btn-go" href="#start">install mycelium</a>
+        <a class="btn btn-quiet" href="https://github.com/jahala/mycelium">read the source</a>
       </div>
     </div>
     <div class="term">
       <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
         <span>sorrel · two peers and a stranger</span></div>
 <pre><span class="t-dim">brack sends, and is told what actually happened</span>
-<span class="t-prompt">$</span> pollen_send to sorrel
+<span class="t-prompt">$</span> mycelium_send to sorrel
   <span class="t-ok">Sent to sorrel.</span>
 
 <span class="t-dim">thistle is not vouched for</span>
-<span class="t-prompt">$</span> pollen_send to sorrel
+<span class="t-prompt">$</span> mycelium_send to sorrel
   Held at sorrel's trust gate — sorrel must
   allow "thistle" before this is delivered.
 
 <span class="t-dim">sorrel's watcher rings, one line per arrival</span>
-<span class="t-ring">[pollen]</span> message from brack — pollen_inbox to
+<span class="t-ring">[mycelium]</span> message from brack — mycelium_inbox to
         read: schema is frozen — migration 0007
         is the last one before the cut
-<span class="t-ring">[pollen]</span> thistle is knocking — pollen_allow
-        or pollen_deny
+<span class="t-ring">[mycelium]</span> thistle is knocking — mycelium_allow
+        or mycelium_deny
 
-<span class="t-prompt">$</span> pollen_inbox
+<span class="t-prompt">$</span> mycelium_inbox
   [brack 2026-09-09T21:14:03Z #7]: schema is
   frozen — migration 0007 is the last one
   before the cut
   Held at the gate: thistle (1 message). Ask the
-  user before calling pollen_allow or pollen_deny.
+  user before calling mycelium_allow or mycelium_deny.
 
-<span class="t-prompt">$</span> pollen_deny thistle
+<span class="t-prompt">$</span> mycelium_deny thistle
   Denied and dropped message from thistle.</pre>
     </div>
   </div>
@@ -271,7 +271,7 @@ section{ padding-block:var(--pp-space-2xl); }
   <div class="wrap">
     <p class="kicker">where it sits</p>
     <h2>The sideways channel</h2>
-    <p class="lede">umbel and pleach both speak down the tree. pollen speaks across it.</p>
+    <p class="lede">umbel and pleach both speak down the tree. mycelium speaks across it.</p>
     <div class="cards">
       <div class="card">
         <h3><span class="bloom" style="background:var(--pp-umbel)"></span>umbel</h3>
@@ -284,7 +284,7 @@ section{ padding-block:var(--pp-space-2xl); }
           and what goes next. Direction still flows downward.</p>
       </div>
       <div class="card">
-        <h3><span class="bloom" style="background:var(--pp-pollen)"></span>pollen</h3>
+        <h3><span class="bloom" style="background:var(--pp-mycelium)"></span>mycelium</h3>
         <p>What growers say to each other. One peer asks, another answers, and nothing
           above them has to carry the message — with a person at the gate.</p>
       </div>
@@ -322,7 +322,7 @@ section{ padding-block:var(--pp-space-2xl); }
     <p style="margin-top:var(--pp-space-lg)">A held knock survives a restart: the gate is
       rebuilt from the journal, so something you were rung about is still there to answer.
       An allow lasts across restarts too. Pre-approve the peers you already trust with
-      <code>POLLEN_ALLOW</code>.</p>
+      <code>MYCELIUM_ALLOW</code>.</p>
   </div>
 </section>
 
@@ -334,16 +334,16 @@ section{ padding-block:var(--pp-space-2xl); }
       HTTP relay across machines; the agent does not know which it is using.</p>
     <div class="modes">
       <div class="card mode">
-        <code>node pollen.mjs</code>
+        <code>node mycelium.mjs</code>
         <p>The MCP server your host spawns. Six tools: send, agents, inbox, allow, deny, rename.</p>
       </div>
       <div class="card mode">
-        <code>node pollen.mjs --relay</code>
+        <code>node mycelium.mjs --relay</code>
         <p>An HTTP hop between machines, over any tunnel or VPN. It forwards; it holds
           nothing.</p>
       </div>
       <div class="card mode">
-        <code>node pollen.mjs --watch id</code>
+        <code>node mycelium.mjs --watch id</code>
         <p>The doorbell. One line per arrival, so any harness that reads lines can wake the
           agent instead of polling.</p>
       </div>
@@ -363,22 +363,22 @@ section{ padding-block:var(--pp-space-2xl); }
     <div class="term">
       <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
         <span>install</span></div>
-<pre><span class="t-prompt">$</span> curl -O https://raw.githubusercontent.com/jahala/pollen/main/pollen.mjs
+<pre><span class="t-prompt">$</span> curl -O https://raw.githubusercontent.com/jahala/mycelium/main/mycelium.mjs
 
 <span class="t-dim"># then, in .mcp.json</span>
 {
   "mcpServers": {
-    "pollen": {
+    "mycelium": {
       "command": "node",
-      "args": ["./pollen.mjs"],
-      "env": { "POLLEN_ID": "my-agent" }
+      "args": ["./mycelium.mjs"]
     }
   }
 }</pre>
     </div>
     <p style="margin-top:var(--pp-space-md)">Then run the doorbell with a tool that reads
-      lines as they come, such as Claude Code's Monitor: <code>node pollen.mjs --watch my-agent</code>. Full options and the environment table
-      are in the <a href="https://github.com/jahala/pollen">README</a>.</p>
+      lines as they come, such as Claude Code's Monitor: <code>node mycelium.mjs --watch &lt;id&gt;</code>. The id is the
+      name of the directory the agent starts in. Full options and the environment table
+      are in the <a href="https://github.com/jahala/mycelium">README</a>.</p>
   </div>
 </section>
 
@@ -407,9 +407,9 @@ section{ padding-block:var(--pp-space-2xl); }
 
       <!-- 1 · identity — per product -->
       <div class="gf-col">
-        <h4>pollen</h4>
+        <h4>mycelium</h4>
         <p class="gf-soft">peer messaging between agents — one asks, another answers, and a person decides who is let in.</p>
-        <p class="gf-soft"><a href="https://github.com/jahala/pollen">github →</a> &nbsp;·&nbsp; MIT</p>
+        <p class="gf-soft"><a href="https://github.com/jahala/mycelium">github →</a> &nbsp;·&nbsp; MIT</p>
       </div>
 
       <!-- 2 · the garden — identical on every page; add .is-current to THIS product -->
@@ -422,7 +422,7 @@ section{ padding-block:var(--pp-space-2xl); }
           <a href="https://github.com/jahala/pleach" style="--bloom:var(--pp-pleach)"><span class="gf-dot"></span>pleach</a>
           <a href="https://github.com/jahala/umbel"  style="--bloom:var(--pp-umbel)"><span class="gf-dot"></span>umbel</a>
           <a href="https://github.com/jahala/copeca" style="--bloom:var(--pp-copeca)"><span class="gf-dot"></span>copeca</a>
-          <a href="https://github.com/jahala/pollen" style="--bloom:var(--pp-pollen)" class="is-current"><span class="gf-dot"></span>pollen</a>
+          <a href="https://github.com/jahala/mycelium" style="--bloom:var(--pp-mycelium)" class="is-current"><span class="gf-dot"></span>mycelium</a>
         </nav>
         <p class="gf-soft">small, sharp tools for building with agents.</p>
       </div>

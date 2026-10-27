@@ -1,13 +1,13 @@
-# Contributing to pollen
+# Contributing to mycelium
 
-Thanks for looking. pollen is deliberately small: one file, no dependencies, no build
+Thanks for looking. mycelium is deliberately small: one file, no dependencies, no build
 step. Most good contributions make it smaller or more honest, not larger.
 
 ## Getting set up
 
 ```bash
-git clone https://github.com/jahala/pollen
-cd pollen
+git clone https://github.com/jahala/mycelium
+cd mycelium
 node --test
 ```
 
@@ -23,7 +23,7 @@ you the opposite of the truth.
 **Explain why in the commit message.** The problem, the root cause, and what you
 decided against. The log is the reasoning trail; a list of changed files is not.
 
-**Keep the failure modes honest.** pollen's design rule is that a caller is never left
+**Keep the failure modes honest.** mycelium's design rule is that a caller is never left
 waiting on something that cannot arrive. If a change can make a send silently
 un-deliverable, it needs to say so in its return value.
 
@@ -32,7 +32,7 @@ un-deliverable, it needs to say so in its return value.
 - Dependencies. The install is `curl` one file; that is a feature.
 - A second protocol where the journal already carries the information.
 - Renaming the operational nouns. Message, inbox, relay, gate, allow, deny stay plain
-  even though the product is called pollen.
+  even though the product is called mycelium.
 - Anything that makes the trust gate implicit, automatic, or skippable by default.
 
 ## Voice
