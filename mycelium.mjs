@@ -7,7 +7,7 @@
 //   node mycelium.mjs --watch ID  tail an agent's journal — one line per new message
 //
 // Agent mode env:
-//   MYCELIUM_ID       required — agent name
+//   MYCELIUM_ID       optional — agent name (default: the directory it starts in)
 //   MYCELIUM_RELAY    optional — relay URL for cross-machine
 //   MYCELIUM_ALLOW    optional — comma-separated trusted agent IDs, or * for anyone
 //   MYCELIUM_DIR      optional — mailbox root (default /tmp/mycelium)
@@ -25,7 +25,7 @@ import {
   renameSync, unlinkSync, writeFileSync, existsSync, statSync, utimesSync,
 } from "fs";
 import { createInterface } from "readline";
-import { join } from "path";
+import { basename, join } from "path";
 import { fileURLToPath } from "url";
 import { setTimeout as sleep } from "timers/promises";
 import http from "http";
@@ -248,6 +248,14 @@ function readState(id, from) {
   return parts.join("; ");
 }
 
+// The id becomes a directory and part of a filename, so a directory name is
+// cut down to what mycelium_rename accepts: letters, digits, dots, dashes and
+// underscores, starting with a letter or digit.
+function idFromDirectory(dir) {
+  const id = basename(dir).replace(/[^A-Za-z0-9._-]/g, "-").replace(/^[^A-Za-z0-9]+|-+$/g, "");
+  return id || "mycelium-peer";
+}
+
 function plural(n, word) { return `${n} ${word}${n === 1 ? "" : "s"}`; }
 
 // =============================================================================
@@ -256,8 +264,10 @@ function plural(n, word) { return `${n} ${word}${n === 1 ? "" : "s"}`; }
 
 function startAgent() {
   const RELAY = process.env.MYCELIUM_RELAY;
-  let ID = process.env.MYCELIUM_ID; // changes only through mycelium_rename
-  if (!ID) { process.stderr.write("MYCELIUM_ID is required. mycelium cannot start without an id; set it in the env of your .mcp.json entry.\n"); process.exit(1); }
+  // An id the env names wins. Otherwise the directory the server starts in:
+  // one per agent in practice, and readable in mycelium_agents. A fixed id in
+  // a committed config would hand every clone of a repository one mailbox.
+  let ID = process.env.MYCELIUM_ID || idFromDirectory(process.cwd()); // changes only through mycelium_rename
 
   const preAllowed = (process.env.MYCELIUM_ALLOW ?? "").split(",").filter(Boolean);
 

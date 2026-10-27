@@ -7,7 +7,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { createInterface } from "node:readline";
@@ -32,10 +32,14 @@ afterEach(() => Promise.all(running.splice(0).map((p) => {
 })));
 
 function agent(id, env = {}) {
-  const proc = spawn(process.execPath, [MYCELIUM], {
+  return serve(spawn(process.execPath, [MYCELIUM], {
     env: { ...process.env, MYCELIUM_DIR: DIR, MYCELIUM_ID: id, ...env },
     stdio: ["pipe", "pipe", "pipe"],
-  });
+  }));
+}
+
+// Speaks MCP to a server already spawned, however it was started.
+function serve(proc) {
   running.push(proc);
 
   const waiting = new Map(); // request id → resolve
@@ -653,4 +657,26 @@ test("mycelium_allow * opens the gate, delivers everyone waiting, and stays open
   const lux = agent("lux");
   await Promise.all([revived.ready(), lux.ready()]);
   assert.equal(await lux.tool("mycelium_send", { to: "ivy", message: "a stranger" }), "Sent to ivy.");
+});
+
+test("two clones in two directories get two different ids, neither of them cape-town", async () => {
+  // What an agent host runs in a fresh clone: the committed .mcp.json, from
+  // the clone's own directory. The file once named a fixed id, and every
+  // workspace of this repository took over the umbrella agent's mailbox.
+  const config = JSON.parse(readFileSync(join(dirname(MYCELIUM), ".mcp.json"), "utf-8")).mcpServers.mycelium;
+  const ids = [];
+  for (const name of ["clone-one", "clone two!"]) {
+    const clone = join(DIR, "clones", name);
+    mkdirSync(clone, { recursive: true });
+    copyFileSync(MYCELIUM, join(clone, "mycelium.mjs"));
+    const env = { ...process.env, MYCELIUM_DIR: DIR };
+    delete env.MYCELIUM_ID;              // only the committed config may name one
+    const server = serve(spawn(config.command === "node" ? process.execPath : config.command, config.args, {
+      cwd: clone,
+      env: { ...env, ...config.env },
+      stdio: ["pipe", "pipe", "pipe"],
+    }));
+    ids.push((await server.ready()).instructions.match(/You are agent "([^"]+)"/)[1]);
+  }
+  assert.deepEqual(ids, ["clone-one", "clone-two"]);
 });
