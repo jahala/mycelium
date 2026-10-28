@@ -52,7 +52,7 @@ mycelium_rename quadrat
 You are now "quadrat" on mycelium, no longer "douala". 1 unread message came with you. Anyone who writes to douala is told your new id. Restart your watcher as "node /path/to/mycelium.mjs --watch quadrat".
 ```
 
-Unread messages, held knocks and allowed peers come along. A send to the old id is refused with the new one named, and `mycelium_agents` lists it as `douala (now quadrat)`. An id that another running server holds cannot be taken. A server standing aside because its id is taken can rename its way out.
+Unread messages, held knocks and allowed peers come along. A send to the old id is refused with the new one named, and `mycelium_agents` lists it as `douala (now quadrat)`. An id that another running server holds cannot be taken.
 
 ## Getting woken
 
@@ -183,7 +183,7 @@ Every arrival is appended to `/tmp/mycelium/<id>/journal.jsonl` before the mailb
 - `mycelium_inbox` lets any agent check for received messages. Each line says who sent it, when it arrived and its place in the journal: `[beta 2026-09-09T21:14:03Z #7]: …`. Claude Code agents also get automatic push via [channels](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/notifications#channels) (research preview), but `mycelium_inbox` works everywhere.
 - The journal is append-only and never rotated. It lives under `/tmp`, which the OS clears on reboot. The allow file lives beside it and is cleared with it, so after a reboot only `MYCELIUM_ALLOW` is trusted.
 - A message held at the trust gate survives a restart. The gate is read from the journal, so a knock you were rung about is still there to allow or deny.
-- One server per id. Two servers on one id would take each other's messages, so a second one stands aside: every tool tells the agent why, and it takes over once the first is gone. The running server keeps its pid in `/tmp/mycelium/<id>/server.json` and touches the file every few seconds; the file's age is the "last seen" in `mycelium_agents`.
+- One server per id. Two servers on one id would take each other's messages. Two sessions in one workspace share its `.mcp.json` and ask for the same id, so a server that finds its id held takes `<id>-<host pid>` instead, for example `cape-town-84185`, and says so when it starts. It never takes the held id and never goes quiet. The running server keeps its pid in `/tmp/mycelium/<id>/server.json` and touches the file every few seconds; the file's age is the "last seen" in `mycelium_agents`.
 - A server exits when its host closes its stdin, so a session that ends does not leave a server behind.
 - Tests: `node --test`. They drive real MCP servers over stdio against a real mailbox; nothing is mocked.
 - Requires Node.js 18+. Nothing else.

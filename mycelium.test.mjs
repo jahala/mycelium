@@ -508,27 +508,29 @@ test("the sender is told up front that the receiver is not running", async () =>
   );
 });
 
-test("a second server on the same id stands aside until the first is gone", async () => {
+test("a second server on a held id takes an id of its own, and says so", async () => {
   const first = agent("xia", { MYCELIUM_ALLOW: "bea" });
   await first.ready();
   const second = agent("xia", { MYCELIUM_ALLOW: "bea" });
-  await second.ready();
+  const own = `xia-${process.pid}`;     // the host that spawned it is this test process
+  const { instructions } = await second.ready();
   const bea = agent("bea");
   await bea.ready();
 
-  // Two servers on one id take each other's messages and share one cursor,
-  // so each agent sees part of its mail and believes it has all of it.
-  assert.match(await second.tool("mycelium_inbox"), /^mycelium is not running for "xia": another mycelium server \(pid \d+\) already uses this id\./);
-  assert.match(second.notes.join("\n"), /another mycelium server \(pid \d+\) already uses this id/);
+  // Never the held id, since two servers on one id take each other's mail,
+  // and never dark, since an agent that cannot be reached is worse.
+  assert.ok(instructions.includes(`You are agent "${own}"`), instructions);
+  assert.match(instructions, /"xia" is held by another mycelium server \(pid \d+\)/);
+  assert.match(second.notes.join("\n"), new RegExp(`"xia" is held by another mycelium server \\(pid \\d+\\), so this agent is "${own}"`));
 
   await bea.tool("mycelium_send", { to: "xia", message: "for the first" });
   await waitFor("the first server to take it", () => first.notes.includes("for the first"));
-  assert.ok(!second.notes.includes("for the first"), "the server standing aside took a message");
+  assert.equal(await bea.tool("mycelium_send", { to: own, message: "for the second" }), `Sent to ${own}.`);
+  assert.equal(plain(await second.tool("mycelium_inbox")), "[bea]: for the second");
 
-  // Once the holder is gone, the next call takes the id over, mailbox and all.
-  await first.stop();
-  await bea.tool("mycelium_send", { to: "xia", message: "for whoever is left" });
-  assert.equal(plain(await second.tool("mycelium_inbox")), "[bea]: for the first\n[bea]: for whoever is left");
+  const list = await bea.tool("mycelium_agents");
+  assert.match(list, /^xia \(running\)/m);
+  assert.match(list, new RegExp(`^${own} \\(running\\)`, "m"));
 });
 
 test("mycelium_inbox says when each message arrived and where it sits in the journal", async () => {
@@ -608,18 +610,15 @@ test("mycelium_rename takes the id a director expects, and the mail comes along"
   assert.equal(eyes.lines.length, 2, `the rename rang: ${eyes.lines.slice(2).join(" | ")}`);
 });
 
-test("a server standing aside can rename its way out", async () => {
-  const first = agent("mo");
-  await first.ready();
-  const second = agent("mo");
-  await second.ready();
+test("a server that loses its id mid-session moves to one of its own", async () => {
+  const pim = agent("pim");
+  await pim.ready();
 
-  assert.match(await second.tool("mycelium_inbox"), /^mycelium is not running for "mo"/);
-  assert.match(await second.tool("mycelium_rename", { id: "mo2" }), /^You are now "mo2" on mycelium, no longer "mo"\./);
-  assert.equal(await second.tool("mycelium_inbox"), "No new messages.");
+  // Another live server claims the id, as when two start in the same instant.
+  writeFileSync(join(DIR, "pim", "server.json"), JSON.stringify({ pid: process.pid }));
 
-  // The id it left belongs to the first server, which is untouched.
-  assert.match(await second.tool("mycelium_agents"), /^mo \(running\)$/m);
+  assert.equal(await pim.tool("mycelium_inbox"), "No new messages.");
+  assert.match(pim.notes.join("\n"), new RegExp(`"pim" is held by another mycelium server \\(pid ${process.pid}\\), so this agent is "pim-${process.pid}"`));
 });
 
 test("mycelium_rename refuses an id that is taken or unsafe", async () => {
@@ -679,4 +678,26 @@ test("two clones in two directories get two different ids, neither of them cape-
     ids.push((await server.ready()).instructions.match(/You are agent "([^"]+)"/)[1]);
   }
   assert.deepEqual(ids, ["clone-one", "clone-two"]);
+});
+
+test("two servers started from one directory get two ids, and the first keeps the configured one", async () => {
+  // Two sessions in one workspace share its .mcp.json, so both ask for the
+  // same id. The second must neither take the first's mailbox nor go dark.
+  const config = JSON.parse(readFileSync(join(dirname(MYCELIUM), ".mcp.json"), "utf-8")).mcpServers.mycelium;
+  const twin = join(DIR, "clones", "twin");
+  mkdirSync(twin, { recursive: true });
+  copyFileSync(MYCELIUM, join(twin, "mycelium.mjs"));
+  const env = { ...process.env, MYCELIUM_DIR: DIR };
+  delete env.MYCELIUM_ID;
+  const start = () => serve(spawn(config.command === "node" ? process.execPath : config.command, config.args, {
+    cwd: twin,
+    env: { ...env, ...config.env },
+    stdio: ["pipe", "pipe", "pipe"],
+  }));
+  const idOf = async (server) => (await server.ready()).instructions.match(/You are agent "([^"]+)"/)[1];
+
+  const first = start();
+  assert.equal(await idOf(first), "twin");
+  const second = start();
+  assert.equal(await idOf(second), `twin-${process.pid}`);
 });

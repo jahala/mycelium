@@ -345,6 +345,7 @@ function startAgent() {
         serverInfo: { name: `mycelium-${ID}`, version: VERSION },
         instructions: [
           `You are agent "${ID}", a peer on mycelium.`,
+          displaced ? displacedNotice() : "",
           `Incoming messages appear as <channel> tags with a "from" attribute.`,
           `Use mycelium_send to reach another peer. Use mycelium_agents to see who is reachable and whether they have read what you sent, so there is no need to ask a peer to acknowledge.`,
           `Use mycelium_inbox to read what has arrived. A stranger is held at the gate. ${ASK}`,
@@ -352,7 +353,7 @@ function startAgent() {
           `Do not poll for messages. Run "${RUN} --watch ${ID}" with your harness's line-event tool (in Claude Code that is Monitor; a background Bash task only reports when it exits). It prints one line the moment anything lands; then call mycelium_inbox. If you pipe it, every later stage must flush per line.`,
           `To reach peers on other machines: run "${RUN} --relay" then expose it with "cloudflared tunnel --url http://localhost:4747" (free, no account needed).`,
           `Give the resulting URL to the user so they can pass it to the remote peer as MYCELIUM_RELAY.`,
-        ].join(" "),
+        ].filter(Boolean).join(" "),
       });
     }
 
@@ -364,9 +365,9 @@ function startAgent() {
       const { name, arguments: args } = msg.params;
       const fn = toolHandlers[name];
       if (!fn) return reply(msg.id, text(`Unknown tool: ${name}`));
-      if (standingAside) holdId(); // the other server may have gone since
-      // mycelium_rename stays open: taking an id of its own is the way out.
-      if (standingAside && name !== "mycelium_rename") return reply(msg.id, text(clash(standingAside)));
+      // Two servers starting in the same instant can both claim one id. Checking
+      // here, and not only at the heartbeat, settles it before a tool acts.
+      holdId();
       return reply(msg.id, await fn(args));
     }
   }
@@ -523,16 +524,13 @@ function startAgent() {
       }
 
       const old = ID;
-      // The old mailbox is ours to hand over only if we held it. A server that
-      // was standing aside leaves it to the server that does.
-      const ours = !standingAside;
       if (listening) { listening = false; tx.close(); }
       ID = id;
       mkdirSync(join(DIR, ID), { recursive: true });
       tx = transport();
 
       let messages = 0, knocks = 0;
-      if (ours) {
+      {
         const waiting = [...unread(old), ...heldPending(old)].sort((a, b) => a.seq - b.seq);
         for (const e of waiting) {
           appendEntry(ID, { ts: e.ts, from: e.from, message: e.message, status: e.status });
@@ -548,14 +546,12 @@ function startAgent() {
         writeServerFile(old, { pid: null, movedTo: ID });
       }
 
-      standingAside = null;
-      holdId(false);
-      if (standingAside) return text(clash(standingAside));
+      holdId(false); // if another server took the id meanwhile, this moves us on and says so
       const came = [messages && plural(messages, "unread message"), knocks && plural(knocks, "knock")].filter(Boolean);
       return text([
         `You are now "${ID}" on mycelium, no longer "${old}".`,
         came.length ? `${came.join(" and ")} came with you.` : "",
-        ours ? `Anyone who writes to ${old} is told your new id.` : "",
+        `Anyone who writes to ${old} is told your new id.`,
         `Restart your watcher as "${RUN} --watch ${ID}".`,
       ].filter(Boolean).join(" "));
     },
@@ -743,12 +739,14 @@ function startAgent() {
   // --- one server per id ------------------------------------------------------
   //
   // Two servers on one id take each other's messages and share one cursor, so
-  // each agent sees part of its mail and believes it has all of it. The second
-  // one stands aside: it does not touch the mailbox, every tool says why, and it
-  // takes the id over once the first is gone. Two servers starting in the same
-  // instant can both claim it; the loser notices at its next heartbeat.
+  // each agent sees part of its mail and believes it has all of it. Two
+  // sessions in one workspace share its .mcp.json and ask for the same id, so
+  // this is common. A server that finds its id held never takes it and never
+  // goes dark: it carries on as "<id>-<host pid>", which is unique while its
+  // host runs, and says so. Two servers starting in the same instant can both
+  // claim one id; the loser notices at its next heartbeat or tool call.
 
-  let standingAside = null; // pid of the server holding our id
+  let displaced = null; // { from, by } once the id we asked for was held
   let listening = false;
 
   function holdId(announce = true) {
@@ -760,13 +758,15 @@ function startAgent() {
       } catch {} // the file went with a cleared /tmp: claim it again below
     }
     if (holder && holder !== process.pid) {
-      if (standingAside !== holder) notify(clash(holder), { status: "clash" });
-      standingAside = holder;
+      const taken = ID;
       if (listening) { listening = false; tx.close(); }
-      return;
+      ID = ownId(taken);
+      mkdirSync(join(DIR, ID), { recursive: true });
+      tx = transport();
+      displaced = { from: taken, by: holder };
+      notify(displacedNotice(), { status: "renamed" });
     }
     writeServerFile(ID, { pid: process.pid });
-    standingAside = null;
     if (!listening) {
       listening = true;
       if (announce) announceWaiting();
@@ -775,10 +775,19 @@ function startAgent() {
     }
   }
 
-  function clash(pid) {
-    return `mycelium is not running for "${ID}": another mycelium server (pid ${pid}) already uses this id. ` +
-      `Two agents on one id take each other's messages, so this one stays off. ` +
-      `Take an id of your own with mycelium_rename, or ask the user to stop the other agent.`;
+  // The host's pid comes first: it is the same under every host, unique while
+  // that session runs, and short enough to read in mycelium_agents.
+  function ownId(taken) {
+    for (const id of [`${taken}-${process.ppid}`, `${taken}-${process.ppid}-${process.pid}`]) {
+      const holder = runningServer(id);
+      if (!holder || holder === process.pid) return id;
+    }
+    return `${taken}-${process.pid}-${Date.now().toString(36)}`;
+  }
+
+  function displacedNotice() {
+    return `"${displaced.from}" is held by another mycelium server (pid ${displaced.by}), so this agent is "${ID}". ` +
+      `Peers reach it as ${ID}. Tell whoever expects you as ${displaced.from}, or take another free id with mycelium_rename.`;
   }
 
   holdId();
