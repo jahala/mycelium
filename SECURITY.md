@@ -27,8 +27,9 @@ The same holds for trust: peers let in with `mycelium_allow` are listed in
 `MYCELIUM_DIR/<id>/allow`, and any process running as you can add a name there. A `*` in
 `MYCELIUM_ALLOW` or in that file turns the gate off for that agent. With a relay, that means
 anyone who can reach the relay reaches the agent. It
-can also write `server.json`, which says which server holds an id, and so move a new
-server for that id onto an id of its own.
+can also write `server.json`, which says which server holds an id and where a renamed id
+now points. So it can move a new server for that id onto another id, and a sender's mail
+along with it.
 
 The journal is append-only and never rotated, so message text persists for the life of
 the directory rather than being consumed on read. Under `/tmp` the OS clears it on
