@@ -7,7 +7,7 @@ import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { createInterface } from "node:readline";
@@ -64,6 +64,7 @@ function serve(proc) {
 
   return {
     notes,
+    pid: proc.pid,
     ready: () => call("initialize", {}),
     tool: (name, args = {}) =>
       call("tools/call", { name, arguments: args }).then((r) => r.content[0].text),
@@ -598,11 +599,12 @@ test("mycelium_rename takes the id a director expects, and the mail comes along"
   assert.equal(plain(await dou.tool("mycelium_inbox")), "[kit]: before the rename\nHeld at the gate: zip (1 message). Ask the user before calling mycelium_allow or mycelium_deny.");
   assert.equal(await dou.tool("mycelium_send", { to: "boss", message: "reporting in" }), "Sent to boss.");
 
-  // Whoever still writes to the old id is pointed at the new one.
+  // Whoever still writes to the old id reaches the new one, and is told.
   assert.equal(
     await kit.tool("mycelium_send", { to: "dou", message: "where did you go" }),
-    `dou is now quad. The message was not sent; send it to quad.`,
+    "Sent to quad. dou is now quad.",
   );
+  assert.equal(plain(await dou.tool("mycelium_inbox")), "[kit]: where did you go\nHeld at the gate: zip (1 message). Ask the user before calling mycelium_allow or mycelium_deny.");
   assert.match(await kit.tool("mycelium_agents"), /^dou \(now quad\)$/m);
 
   // Carrying the knock over must not ring anything out on the old journal.
@@ -612,13 +614,14 @@ test("mycelium_rename takes the id a director expects, and the mail comes along"
 
 test("a server that loses its id mid-session moves to one of its own", async () => {
   const pim = agent("pim");
-  await pim.ready();
+  const rival = agent("pim-rival");
+  await Promise.all([pim.ready(), rival.ready()]);
 
   // Another live server claims the id, as when two start in the same instant.
-  writeFileSync(join(DIR, "pim", "server.json"), JSON.stringify({ pid: process.pid }));
+  writeFileSync(join(DIR, "pim", "server.json"), JSON.stringify({ pid: rival.pid }));
 
   assert.equal(await pim.tool("mycelium_inbox"), "No new messages.");
-  assert.match(pim.notes.join("\n"), new RegExp(`"pim" is held by another mycelium server \\(pid ${process.pid}\\), so this agent is "pim-${process.pid}"`));
+  assert.match(pim.notes.join("\n"), new RegExp(`"pim" is held by another mycelium server \\(pid ${rival.pid}\\), so this agent is "pim-${process.pid}"`));
 });
 
 test("mycelium_rename refuses an id that is taken or unsafe", async () => {
@@ -700,4 +703,78 @@ test("two servers started from one directory get two ids, and the first keeps th
   assert.equal(await idOf(first), "twin");
   const second = start();
   assert.equal(await idOf(second), `twin-${process.pid}`);
+});
+
+test("a message whose watch event never comes is still delivered", async () => {
+  const sun = agent("sun", { MYCELIUM_ALLOW: "kip2" });
+  const kip2 = agent("kip2");
+  await Promise.all([sun.ready(), kip2.ready()]);
+
+  // Replace sun's inbox under it, as a cleanup might. Its watch stays on the
+  // old directory and never fires again, like an event the system dropped.
+  renameSync(join(DIR, "sun", "inbox"), join(DIR, "sun", "inbox.gone"));
+  mkdirSync(join(DIR, "sun", "inbox"));
+
+  await kip2.tool("mycelium_send", { to: "sun", message: "still here?" });
+  await waitFor("sun to take it without a watch event", () => taken("sun"));
+  assert.equal(plain(await sun.tool("mycelium_inbox")), "[kip2]: still here?");
+});
+
+test("a rename sticks across a restart, and renaming back undoes it", async () => {
+  const first = agent("dou2");
+  await first.ready();
+  await first.tool("mycelium_rename", { id: "quad2" });
+  await first.stop();
+
+  // Started the same way, under the same id, it comes back as the name it took.
+  const second = agent("dou2");
+  const { instructions } = await second.ready();
+  assert.ok(instructions.includes('You are agent "quad2"'), instructions);
+  assert.match(second.notes.join("\n"), /"dou2" was renamed to "quad2" earlier, so this agent is "quad2"\./);
+
+  await second.tool("mycelium_rename", { id: "dou2" });
+  await second.stop();
+  const third = agent("dou2");
+  assert.ok((await third.ready()).instructions.includes('You are agent "dou2"'));
+});
+
+test("a server.json naming a live process that is no mycelium server does not hold the id", async () => {
+  // A pid can be reused by anything once its server is gone. This test
+  // process is alive and is not a mycelium server.
+  mkdirSync(join(DIR, "lux2"), { recursive: true });
+  writeFileSync(join(DIR, "lux2", "server.json"), JSON.stringify({ pid: process.pid }));
+
+  const lux2 = agent("lux2");
+  assert.ok((await lux2.ready()).instructions.includes('You are agent "lux2"'));
+});
+
+test("a displaced server returns to its own id once the holder is gone", async () => {
+  const first = agent("ryu");
+  await first.ready();
+  const second = agent("ryu", { MYCELIUM_ALLOW: "bea2" });
+  const own = `ryu-${process.pid}`;
+  await second.ready();
+  const bea2 = agent("bea2");
+  await bea2.ready();
+  await bea2.tool("mycelium_send", { to: own, message: "while you were displaced" });
+
+  // A server that only held the id for a moment, such as a health check,
+  // must not leave the session under a borrowed name for the rest of its life.
+  await first.stop();
+  assert.equal(plain(await second.tool("mycelium_inbox")), "[bea2]: while you were displaced");
+  assert.match(second.notes.join("\n"), new RegExp(`"ryu" is free again, so this agent is "ryu" once more`));
+  assert.equal(JSON.parse(readFileSync(join(DIR, "ryu", "server.json"), "utf-8")).pid, second.pid);
+});
+
+test("mail that lands in a renamed agent's old mailbox still reaches it", async () => {
+  const dou3 = agent("dou3", { MYCELIUM_ALLOW: "kit3" });
+  await dou3.ready();
+  await dou3.tool("mycelium_rename", { id: "quad3" });
+
+  // A sender that wrote before it saw the pointer, or an older copy of the
+  // tool, puts the file in the old inbox, where no server is listening.
+  writeFileSync(join(DIR, "dou3", "inbox", `${Date.now()}_late_from_kit3.msg`), "sent to your old name");
+
+  await waitFor("the old inbox to be swept", () => taken("dou3"));
+  assert.equal(plain(await dou3.tool("mycelium_inbox")), "[kit3]: sent to your old name");
 });

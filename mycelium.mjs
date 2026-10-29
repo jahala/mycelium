@@ -24,6 +24,7 @@ import {
   watch, mkdirSync, readdirSync, readFileSync, appendFileSync,
   renameSync, unlinkSync, writeFileSync, existsSync, statSync, utimesSync,
 } from "fs";
+import { execFileSync } from "child_process";
 import { createInterface } from "readline";
 import { basename, join } from "path";
 import { fileURLToPath } from "url";
@@ -213,9 +214,36 @@ function runningServer(id) {
     pid = serverFile(id)?.pid;
     if (!pid) return null; // released by a rename
     process.kill(pid, 0); // signal 0 delivers nothing; it only asks if pid exists
-    return pid;
   } catch (e) {
-    return e.code === "EPERM" ? pid : null; // exists, but belongs to another user
+    if (e.code !== "EPERM") return null; // EPERM: it exists, but belongs to another user
+  }
+  return isMyceliumServer(pid) ? pid : null;
+}
+
+// A live pid is not proof either: once a server is gone, any process can be
+// given its number. Its command line says whether it is this tool. If ps
+// cannot answer, the pid is taken as a holder, since moving to an id of our
+// own is recoverable and two servers on one id is not.
+function isMyceliumServer(pid) {
+  if (pid === process.pid) return true;
+  try {
+    const command = execFileSync("ps", ["-p", String(pid), "-o", "command="], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] });
+    return command.includes(basename(SELF));
+  } catch (e) {
+    return e.status !== 1; // ps exits 1 when the pid is gone
+  }
+}
+
+// Where an agent that started as `id` lives now. A rename leaves its old id
+// pointing at the new one, and following that at startup is what makes a
+// rename outlast a restart. Renaming back clears the pointer.
+function followMoves(id) {
+  const seen = new Set([id]);
+  for (;;) {
+    const next = movedTo(id);
+    if (!next || seen.has(next) || runningServer(id)) return id;
+    seen.add(next);
+    id = next;
   }
 }
 
@@ -267,7 +295,12 @@ function startAgent() {
   // An id the env names wins. Otherwise the directory the server starts in:
   // one per agent in practice, and readable in mycelium_agents. A fixed id in
   // a committed config would hand every clone of a repository one mailbox.
-  let ID = process.env.MYCELIUM_ID || idFromDirectory(process.cwd()); // changes only through mycelium_rename
+  const startedAs = process.env.MYCELIUM_ID || idFromDirectory(process.cwd());
+  let ID = followMoves(startedAs); // changes only through a rename, or when the id is held
+  let followed = ID !== startedAs ? startedAs : null; // the id a sticky rename moved us from
+  // Ids this agent has moved away from, whose inboxes it still sweeps.
+  const formerIds = new Set();
+  for (let id = startedAs, hops = 0; id && id !== ID && hops < 64; id = movedTo(id), hops++) formerIds.add(id);
 
   const preAllowed = (process.env.MYCELIUM_ALLOW ?? "").split(",").filter(Boolean);
 
@@ -313,6 +346,7 @@ function startAgent() {
     // taking this agent's messages, and its seq counter would collide with the
     // next server started for the same id.
     clearInterval(heartbeat);
+    clearInterval(sweep);
     tx.close();
   });
 
@@ -345,6 +379,7 @@ function startAgent() {
         serverInfo: { name: `mycelium-${ID}`, version: VERSION },
         instructions: [
           `You are agent "${ID}", a peer on mycelium.`,
+          followed ? followedNotice() : "",
           displaced ? displacedNotice() : "",
           `Incoming messages appear as <channel> tags with a "from" attribute.`,
           `Use mycelium_send to reach another peer. Use mycelium_agents to see who is reachable and whether they have read what you sent, so there is no need to ask a peer to acknowledge.`,
@@ -438,25 +473,27 @@ function startAgent() {
 
   const toolHandlers = {
     async mycelium_send({ to, message }) {
-      const moved = !RELAY && movedTo(to);
-      if (moved && !runningServer(to)) {
-        return text(`${to} is now ${moved}. The message was not sent; send it to ${moved}.`);
-      }
+      // An agent that renamed itself left its old id pointing at the new one.
+      // The message follows the pointer, and the sender learns the new id.
+      const asked = to;
+      if (!RELAY) to = followMoves(to);
+      const moved = to !== asked ? ` ${asked} is now ${to}.` : "";
+      const said = (t) => text(t + moved);
       const status = await tx.send(to, message);
       if (status === "queued" && !runningServer(to)) {
-        return text(`Queued for ${to}. ${to}'s mycelium is not running. The message waits in the mailbox until ${to} starts.`);
+        return said(`Queued for ${to}. ${to}'s mycelium is not running. The message waits in the mailbox until ${to} starts.`);
       }
-      if (status === "unknown-agent") return text(`No mailbox for "${to}". The message was not sent. Check the id with mycelium_agents.`);
+      if (status === "unknown-agent") return said(`No mailbox for "${to}". The message was not sent. Check the id with mycelium_agents.`);
       if (status === "unreachable") {
-        return text(`mycelium could not reach the relay. The message was not delivered to ${to}. Retry, or send it to a local peer.`);
+        return said(`mycelium could not reach the relay. The message was not delivered to ${to}. Retry, or send it to a local peer.`);
       }
       if (status === "pending") {
-        return text(`Held at ${to}'s trust gate. ${to} must allow "${ID}" before this is delivered.`);
+        return said(`Held at ${to}'s trust gate. ${to} must allow "${ID}" before this is delivered.`);
       }
       if (status === "queued") {
-        return text(`Queued for ${to}. No confirmation from ${to}'s mycelium; it stays in the mailbox until taken.`);
+        return said(`Queued for ${to}. No confirmation from ${to}'s mycelium; it stays in the mailbox until taken.`);
       }
-      return text(`Sent to ${to}.`);
+      return said(`Sent to ${to}.`);
     },
     async mycelium_agents() {
       const list = await tx.agents();
@@ -523,29 +560,10 @@ function startAgent() {
         return text(`Cannot take "${id}": another mycelium server (pid ${holder}) is running as it. Nothing changed. Pick another id, or ask the user which agent should have it.`);
       }
 
-      const old = ID;
-      if (listening) { listening = false; tx.close(); }
-      ID = id;
-      mkdirSync(join(DIR, ID), { recursive: true });
-      tx = transport();
-
-      let messages = 0, knocks = 0;
-      {
-        const waiting = [...unread(old), ...heldPending(old)].sort((a, b) => a.seq - b.seq);
-        for (const e of waiting) {
-          appendEntry(ID, { ts: e.ts, from: e.from, message: e.message, status: e.status });
-          if (e.status !== "pending") { messages++; continue; }
-          knocks++;
-          // Settled on the old side so its gate stops counting the knock. The
-          // text is not repeated: it lives on in the new journal.
-          appendEntry(old, { from: e.from, message: "", status: "moved", resolves: e.seq });
-        }
-        writeFileSync(cursorPath(old), String(topSeq(old)));
-        const kept = allowedBy(ID);
-        for (const peer of allowedBy(old)) if (!kept.includes(peer)) appendFileSync(allowPath(ID), peer + "\n");
-        writeServerFile(old, { pid: null, movedTo: ID });
-      }
-
+      // A name the agent chose replaces one it borrowed or followed.
+      displaced = null;
+      followed = null;
+      const { old, messages, knocks } = moveTo(id);
       holdId(false); // if another server took the id meanwhile, this moves us on and says so
       const came = [messages && plural(messages, "unread message"), knocks && plural(knocks, "knock")].filter(Boolean);
       return text([
@@ -598,8 +616,9 @@ function startAgent() {
 
     // The receiver journals every arrival before the mailbox file is gone, so
     // its journal is the ack channel.
+    // Three seconds covers a busy machine and the receiver's one-second sweep.
     async function settled(to, since, message) {
-      const deadline = Date.now() + 1000;
+      const deadline = Date.now() + 3000;
       while (Date.now() < deadline) {
         const mine = readJournal(to).find(
           (e) => e.seq > since && e.from === ID && e.message === message,
@@ -624,6 +643,7 @@ function startAgent() {
         const part = join(target, `.${name}.part`);
         writeFileSync(part, message);
         renameSync(part, join(target, `${name}.msg`));
+        if (!runningServer(to)) return "queued"; // nobody to wait for
         return settled(to, since, message);
       },
       async agents() {
@@ -649,6 +669,14 @@ function startAgent() {
         for (const f of readdirSync(inbox).filter((f) => f.endsWith(".msg"))) {
           consume(join(inbox, f), f, cb);
         }
+      },
+      // The inbox of an id this agent moved away from. A sender that wrote
+      // before it saw the pointer leaves its message there.
+      drainFrom(id, cb) {
+        const old = join(DIR, id, "inbox");
+        let files = [];
+        try { files = readdirSync(old).filter((f) => f.endsWith(".msg")); } catch {}
+        for (const f of files) consume(join(old, f), f, cb);
       },
     };
   }
@@ -702,6 +730,7 @@ function startAgent() {
         connect();
       },
       drain() {}, // relay drains on SSE connect
+      drainFrom() {}, // the relay holds one queue per id, and a moved id has no listener to forward
       close() {
         closed = true;
         clearTimeout(reconnect);
@@ -749,7 +778,49 @@ function startAgent() {
   let displaced = null; // { from, by } once the id we asked for was held
   let listening = false;
 
+  // Hand this agent's mail, knocks and allowed peers over to `id`, and leave
+  // the old id pointing at it. The caller then claims `id` with holdId.
+  function moveTo(id) {
+    const old = ID;
+    if (listening) {
+      tx.drain(onMessage); // anything already in the old mailbox is ours to bring
+      listening = false;
+      tx.close();
+    }
+    ID = id;
+    mkdirSync(join(DIR, ID), { recursive: true });
+    tx = transport();
+
+    let messages = 0, knocks = 0;
+    const waiting = [...unread(old), ...heldPending(old)].sort((a, b) => a.seq - b.seq);
+    for (const e of waiting) {
+      appendEntry(ID, { ts: e.ts, from: e.from, message: e.message, status: e.status });
+      if (e.status !== "pending") { messages++; continue; }
+      knocks++;
+      // Settled on the old side so its gate stops counting the knock. The
+      // text is not repeated: it lives on in the new journal.
+      appendEntry(old, { from: e.from, message: "", status: "moved", resolves: e.seq });
+    }
+    writeFileSync(cursorPath(old), String(topSeq(old)));
+    const kept = allowedBy(ID);
+    for (const peer of allowedBy(old)) if (!kept.includes(peer)) appendFileSync(allowPath(ID), peer + "\n");
+    writeServerFile(old, { pid: null, movedTo: ID });
+    formerIds.add(old);
+    formerIds.delete(ID);
+    return { old, messages, knocks };
+  }
+
   function holdId(announce = true) {
+    // A borrowed id is given back as soon as our own is free. A holder that
+    // lived for a moment, such as a health check, must not leave the session
+    // under a borrowed name for the rest of its life.
+    if (displaced && !runningServer(displaced.from)) {
+      const back = displaced.from;
+      displaced = null;
+      const { old } = moveTo(back);
+      notify(`"${back}" is free again, so this agent is "${back}" once more. Mail sent to ${old} came along, and ${old} now points here.`, { status: "renamed" });
+      announce = false;
+    }
     const holder = runningServer(ID);
     if (holder === process.pid) {
       try {
@@ -785,17 +856,35 @@ function startAgent() {
     return `${taken}-${process.pid}-${Date.now().toString(36)}`;
   }
 
+  function followedNotice() {
+    return `"${followed}" was renamed to "${ID}" earlier, so this agent is "${ID}". Rename back to ${followed} to undo it.`;
+  }
+
   function displacedNotice() {
     return `"${displaced.from}" is held by another mycelium server (pid ${displaced.by}), so this agent is "${ID}". ` +
       `Peers reach it as ${ID}. Tell whoever expects you as ${displaced.from}, or take another free id with mycelium_rename.`;
   }
 
   holdId();
+  if (followed && !displaced) notify(followedNotice(), { status: "renamed" });
   const heartbeat = setInterval(() => {
     // A throw here would end the process: nothing catches a timer's errors.
     try { holdId(); } catch (e) { process.stderr.write(`mycelium: could not check who holds "${ID}": ${e.message}\n`); }
   }, HEARTBEAT);
   heartbeat.unref(); // never the thing that keeps a hostless server alive
+
+  // fs.watch can drop an event, and then a message waits for the next arrival.
+  // A sweep of the inbox every second bounds that wait (#37).
+  const sweep = setInterval(() => {
+    try {
+      if (!listening) return;
+      tx.drain(onMessage);
+      // Only while the old id still leads here: if someone has taken it since,
+      // its mail is theirs.
+      for (const id of formerIds) if (!runningServer(id) && followMoves(id) === ID) tx.drainFrom(id, onMessage);
+    } catch (e) { process.stderr.write(`mycelium: could not sweep the inbox: ${e.message}\n`); }
+  }, 1000);
+  sweep.unref();
 }
 
 // =============================================================================
