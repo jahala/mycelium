@@ -5,7 +5,7 @@
 
 import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,6 +19,35 @@ const MYCELIUM = join(dirname(fileURLToPath(import.meta.url)), "mycelium.mjs");
 // One mailbox root per run, left in place afterwards. It lives under the
 // system temp dir, which the OS clears.
 const DIR = mkdtempSync(join(tmpdir(), "mycelium-test-"));
+
+test("CLI help prints usage without opening a mailbox", () => {
+  const mailbox = join(DIR, "cli-help");
+  for (const flag of ["--help", "-h"]) {
+    const result = spawnSync(process.execPath, [MYCELIUM, flag], {
+      env: { ...process.env, MYCELIUM_DIR: mailbox },
+      encoding: "utf8",
+      timeout: 5000,
+    });
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, /Usage:.*--watch/s);
+    assert.equal(result.stderr, "");
+    assert.equal(existsSync(mailbox), false);
+  }
+});
+
+test("invalid CLI arguments fail before creating a mailbox", () => {
+  const mailbox = join(DIR, "cli-invalid");
+  for (const args of [["--wach"], ["--watch"], ["--watch", "--help"], ["--relay", "--wach"]]) {
+    const result = spawnSync(process.execPath, [MYCELIUM, ...args], {
+      env: { ...process.env, MYCELIUM_DIR: mailbox, MYCELIUM_PORT: "0" },
+      encoding: "utf8",
+      timeout: 1000,
+    });
+    assert.equal(result.status, 1, args.join(" "));
+    assert.match(result.stderr, /Usage:/);
+    assert.equal(existsSync(mailbox), false);
+  }
+});
 
 // --- harness -----------------------------------------------------------------
 
