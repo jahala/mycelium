@@ -896,11 +896,6 @@ function startAgent() {
 // gets woken instead of polling.
 
 function startWatch(id) {
-  if (!id) {
-    process.stderr.write("usage: node mycelium.mjs --watch <agent-id>\n");
-    process.exit(1);
-  }
-
   const journal = journalPath(id);
   mkdirSync(join(DIR, id), { recursive: true });
   appendFileSync(journal, ""); // create it if the agent hasn't started yet
@@ -965,12 +960,21 @@ function startWatch(id) {
 //
 // Last in the file, so every constant above exists before any mode starts.
 
-if (process.argv.includes("--version")) {
-  process.stdout.write(`mycelium ${VERSION}\n`);
-} else if (process.argv.includes("--relay")) {
-  startRelay();
-} else if (process.argv.includes("--watch")) {
-  startWatch(process.argv[process.argv.indexOf("--watch") + 1]);
-} else {
+const args = process.argv.slice(2);
+const [mode, id] = args;
+const usage = "Usage: node mycelium.mjs [--help | --version | --relay | --watch ID]\n";
+
+if (args.length === 0) {
   startAgent();
+} else if (args.length === 1 && (mode === "--help" || mode === "-h")) {
+  process.stdout.write(usage);
+} else if (args.length === 1 && mode === "--version") {
+  process.stdout.write(`mycelium ${VERSION}\n`);
+} else if (args.length === 1 && mode === "--relay") {
+  startRelay();
+} else if (args.length === 2 && mode === "--watch" && id && !id.startsWith("-")) {
+  startWatch(id);
+} else {
+  process.stderr.write(`Invalid arguments: ${JSON.stringify(args)}. No mycelium mode started.\n${usage}`);
+  process.exitCode = 1;
 }
