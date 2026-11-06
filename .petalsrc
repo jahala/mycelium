@@ -2,7 +2,7 @@
 brand:
   # plotplot is the umbrella brand and the brand repo.
   source: https://github.com/jahala/plotplot.git
-  version: v1.13.1
+  version: v1.14.1
   # mycelium's product layer is authored in the umbrella at .brand/products/mycelium/
   # and arrives with the fetch. Do not re-author it here.
   product: mycelium
